@@ -6,6 +6,7 @@ public class Player {
     public Dictionary<string, Unit> army;
     public Dictionary<string, Unit> buildings;
     public string name;
+    public string roomUUID;
 
     // metadata
     private string ipAddress;
