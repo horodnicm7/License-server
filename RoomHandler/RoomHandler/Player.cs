@@ -2,21 +2,19 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace RoomHandler {
-    class Player {
-        public Dictionary<string, Unit> army;
-        public Dictionary<string, Unit> buildings;
-        public string name;
+public class Player {
+    public Dictionary<string, Unit> army;
+    public Dictionary<string, Unit> buildings;
+    public string name;
 
-        // metadata
-        private string ipAddress;
-        private short ping;
+    // metadata
+    private string ipAddress;
+    private short ping;
 
-        public Player(string name) {
-            this.name = name;
+    public Player(string name) {
+        this.name = name;
 
-            this.army = new Dictionary<string, Unit>();
-            this.buildings = new Dictionary<string, Unit>();
-        }
+        this.army = new Dictionary<string, Unit>();
+        this.buildings = new Dictionary<string, Unit>();
     }
 }
