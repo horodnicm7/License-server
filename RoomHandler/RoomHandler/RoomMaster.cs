@@ -14,10 +14,10 @@ public class RoomMaster : Plugin {
     }
 
     private void ClientConnected(object sender, ClientConnectedEventArgs e) {
-
+        Console.WriteLine("New connection " + e.Client.ID);
     }
 
     private void ClientDisconnect(object sender, ClientDisconnectedEventArgs e) {
-
+        Console.WriteLine("Disconnect " + e.Client.ID);
     }
 }
