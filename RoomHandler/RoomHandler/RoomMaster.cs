@@ -13,6 +13,8 @@ public class RoomMaster : Plugin {
 
     private Dictionary<IClient, List<Message>> messageQueue;
 
+    public static int PACKET_SIZE_LIMIT = 32000;
+
     public RoomMaster(PluginLoadData pluginLoadData) : base(pluginLoadData) {
         RoomMaster.players = new Dictionary<IClient, Player>();
 
@@ -20,6 +22,22 @@ public class RoomMaster : Plugin {
         ClientManager.ClientDisconnected += ClientDisconnect;
         
         this.rooms = new Dictionary<string, Room>();
+
+        this.testStuff();
+    }
+
+    private void testStuff() {
+        this.rooms.Add("123-456-789", new Room("123-456-789", "A"));
+        this.rooms.Add("123-456-78", new Room("123-456-78", "B"));
+        this.rooms.Add("123-456-7", new Room("123-456-7", "C"));
+        this.rooms.Add("123-456-", new Room("123-456-", "D"));
+        this.rooms.Add("123-456", new Room("123-456", "E"));
+        this.rooms.Add("123-45", new Room("123-45", "F"));
+        this.rooms.Add("123-4", new Room("123-4", "G"));
+        this.rooms.Add("123-", new Room("123-", "H"));
+        this.rooms.Add("123", new Room("123", "I"));
+        this.rooms.Add("12", new Room("12", "J"));
+        this.rooms.Add("1", new Room("1", "A"));
     }
 
     private void ClientConnected(object sender, ClientConnectedEventArgs e) {
@@ -76,7 +94,33 @@ public class RoomMaster : Plugin {
 
                         client.SendMessage(message, SendMode.Reliable);
                         break;
+                    case Tags.REQUEST_ROOMS_LIST:
+                        this.sentRoomsListToClient(client);
+                        break;
                 }
+            }
+        }
+    }
+
+    private void sentRoomsListToClient(IClient client) {
+        string roomsList = "";
+        foreach(KeyValuePair<string, Room> roomEntry in this.rooms) {
+            string newEntry = roomEntry.Key + ">" + roomEntry.Value.name + ">" + roomEntry.Value.players.Count + "\n";
+
+            if (roomsList.Length + newEntry.Length > RoomMaster.PACKET_SIZE_LIMIT) {
+                break;
+            }
+
+            roomsList = roomsList + newEntry;
+        }
+
+        Logger.print("Rooms list: \n" + roomsList);
+
+        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+            writer.Write(roomsList);
+
+            using (Message message = Message.Create(Tags.SEND_ROOMS_LIST, writer)) {
+                client.SendMessage(message, SendMode.Reliable);
             }
         }
     }
