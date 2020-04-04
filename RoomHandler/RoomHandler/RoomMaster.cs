@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using DarkRift.Server;
 using DarkRift;
+using DarkRift.Server.Plugins.LogWriters;
 
 public class RoomMaster : Plugin {
     public override bool ThreadSafe => false;
@@ -17,6 +18,8 @@ public class RoomMaster : Plugin {
 
         ClientManager.ClientConnected += ClientConnected;
         ClientManager.ClientDisconnected += ClientDisconnect;
+        
+        this.rooms = new Dictionary<string, Room>();
     }
 
     private void ClientConnected(object sender, ClientConnectedEventArgs e) {

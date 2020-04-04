@@ -17,3 +17,5 @@ with open(src_file) as file:
             shutil.copy(dll_format.format(line), dest)
         except Exception as e:
             print(str(e))
+            
+# os.startfile("Server\\DarkRift.Server.Console.exe")

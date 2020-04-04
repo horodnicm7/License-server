@@ -14,9 +14,11 @@ public class Room {
     public Room(string uuid, string name) {
         this.uuid = uuid;
         this.name = name;
+
+        this.players = new Dictionary<IClient, bool>();
     }
 
     public void MessageReceived(object sender, MessageReceivedEventArgs e) {
-
+        Logger.print("Message from new room");
     }
 }
