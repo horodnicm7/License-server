@@ -27,17 +27,28 @@ public class RoomMaster : Plugin {
     }
 
     private void testStuff() {
-        this.rooms.Add("123-456-789", new Room("123-456-789", "A"));
-        this.rooms.Add("123-456-78", new Room("123-456-78", "B"));
-        this.rooms.Add("123-456-7", new Room("123-456-7", "C"));
-        this.rooms.Add("123-456-", new Room("123-456-", "D"));
-        this.rooms.Add("123-456", new Room("123-456", "E"));
-        this.rooms.Add("123-45", new Room("123-45", "F"));
-        this.rooms.Add("123-4", new Room("123-4", "G"));
-        this.rooms.Add("123-", new Room("123-", "H"));
-        this.rooms.Add("123", new Room("123", "I"));
-        this.rooms.Add("12", new Room("12", "J"));
-        this.rooms.Add("1", new Room("1", "A"));
+        this.rooms.Add("123-456-789", new Room("123-456-789", "A", 2));
+        this.rooms.Add("123-456-78", new Room("123-456-78", "B", 4));
+        this.rooms.Add("123-456-7", new Room("123-456-7", "C", 6));
+        this.rooms.Add("123-456-", new Room("123-456-", "D", 6));
+        this.rooms.Add("123-456", new Room("123-456", "E", 4));
+        this.rooms.Add("123-45", new Room("123-45", "F", 2));
+        this.rooms.Add("123-4", new Room("123-4", "G", 4));
+        this.rooms.Add("123-", new Room("123-", "H", 6));
+        this.rooms.Add("123", new Room("123", "I", 6));
+        this.rooms.Add("12", new Room("12", "J", 6));
+        this.rooms.Add("1", new Room("1", "A", 6));
+
+        Player p1 = new Player("P1");
+        Player p2 = new Player("P2");
+        Player p3 = new Player("P3");
+        Player p4 = new Player("P4");
+        Player p5 = new Player("P5");
+        Player p6 = new Player("P6");
+        Player p7 = new Player("P7");
+        Player p8 = new Player("P8");
+
+
     }
 
     private void ClientConnected(object sender, ClientConnectedEventArgs e) {
@@ -68,14 +79,18 @@ public class RoomMaster : Plugin {
                         }
 
                         // get final info for creating a room
-                        string roomName = reader.ReadString();
+                        string[] roomInfo = reader.ReadString().Split('>');
+                        string roomName = roomInfo[1];
+                        byte numberOfPlayers = Byte.Parse(roomInfo[0]);
+                        
                         string uuid = Guid.NewGuid().ToString();
 
                         Logger.print("UUID: " + uuid);
                         Logger.print("Room name: " + roomName);
+                        Logger.print("No players: " + numberOfPlayers);
 
                         // create a new room, register it and set the current client as owner
-                        Room newRoom = new Room(uuid, roomName);
+                        Room newRoom = new Room(uuid, roomName, numberOfPlayers);
                         newRoom.players.Add(client, true);
                         RoomMaster.players[client].roomUUID = uuid;
 
@@ -97,6 +112,28 @@ public class RoomMaster : Plugin {
                     case Tags.REQUEST_ROOMS_LIST:
                         this.sentRoomsListToClient(client);
                         break;
+                    case Tags.JOIN_ROOM:
+                        string roomId = reader.ReadString();
+                        Room thisRoom = this.rooms[roomId];
+
+                        if (thisRoom.players.Count == thisRoom.maxNumberOfPlayers) {
+                            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+                                using (Message response = Message.Create(Tags.ROOM_NOT_AVAILABLE, writer))
+                                    client.SendMessage(response, SendMode.Reliable);
+                            }
+                        } else {
+                            // TODO: for test only
+                            // # = this player is room's leader
+                            string playersList = "Dan\n#Lucifer\nIonut\nAlexandru\nTerminator\nWTF\nAAAALO\nBarabula\n";
+                            
+                            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+                                writer.Write(playersList);
+
+                                using (Message response = Message.Create(Tags.CAN_JOIN_ROOM, writer))
+                                    client.SendMessage(response, SendMode.Reliable);
+                            }
+                        }
+                        break;
                 }
             }
         }
@@ -104,8 +141,9 @@ public class RoomMaster : Plugin {
 
     private void sentRoomsListToClient(IClient client) {
         string roomsList = "";
-        foreach(KeyValuePair<string, Room> roomEntry in this.rooms) {
-            string newEntry = roomEntry.Key + ">" + roomEntry.Value.name + ">" + roomEntry.Value.players.Count + "\n";
+        foreach (KeyValuePair<string, Room> roomEntry in this.rooms) {
+            string newEntry = roomEntry.Key + ">" + roomEntry.Value.name + ">" +
+                roomEntry.Value.players.Count + ">" + roomEntry.Value.maxNumberOfPlayers + "\n";
 
             if (roomsList.Length + newEntry.Length > RoomMaster.PACKET_SIZE_LIMIT) {
                 break;

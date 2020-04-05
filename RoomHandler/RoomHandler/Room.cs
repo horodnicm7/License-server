@@ -10,10 +10,12 @@ public class Room {
     public Dictionary<IClient, bool> players;
     public string uuid;
     public string name;
+    public byte maxNumberOfPlayers;
 
-    public Room(string uuid, string name) {
+    public Room(string uuid, string name, byte maxNoPlayers) {
         this.uuid = uuid;
         this.name = name;
+        this.maxNumberOfPlayers = maxNoPlayers;
 
         this.players = new Dictionary<IClient, bool>();
     }

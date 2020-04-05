@@ -10,4 +10,8 @@ public class Tags {
     public const byte SEND_ROOMS_LIST = 4;
     public const byte REQUEST_ROOMS_LIST = 5;
     public const byte JOIN_ROOM = 6;
+    public const byte ROOM_NOT_AVAILABLE = 7;
+    public const byte CAN_JOIN_ROOM = 8;
+    public const byte LEAVE_ROOM = 9;
+    public const byte START_GAME = 10;
 }
