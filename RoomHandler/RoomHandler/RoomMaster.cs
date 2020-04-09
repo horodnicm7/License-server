@@ -23,7 +23,7 @@ public class RoomMaster : Plugin {
         
         this.rooms = new Dictionary<string, Room>();
 
-        this.testStuff();
+        //this.testStuff();
     }
 
     private void testStuff() {
@@ -72,6 +72,7 @@ public class RoomMaster : Plugin {
                     case Tags.RECEIVE_PLAYER_NAME:
                         string playerName = reader.ReadString();
                         RoomMaster.players[client] = new Player(playerName);
+                        Logger.print("Joining: " + client.ID + " " + playerName);
                         break;
                     case Tags.CREATE_ROOM:
                         if (RoomMaster.players[client] == null) {
@@ -96,18 +97,27 @@ public class RoomMaster : Plugin {
 
                         this.rooms.Add(uuid, newRoom);
 
-                        // set the message received handler to the room's one
-                        client.MessageReceived -= this.MessageReceived;
-                        client.MessageReceived += newRoom.MessageReceived;
-
                         // send the UUID to client
                         using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
                             writer.Write(uuid);
                             message.Serialize(writer);
                         }
                         message.Tag = Tags.SEND_ROOM_IDENTIFIER;
-
                         client.SendMessage(message, SendMode.Reliable);
+
+                        // # = this player is room's leader
+                        string playersList = "";//"Dan\n#Lucifer\nIonut\nAlexandru\nTerminator\nWTF\nAAAALO\nBarabula\n";
+                        foreach (KeyValuePair<IClient, bool> player in newRoom.players) {
+                            playersList += RoomMaster.players[player.Key].name + "\n";
+                        }
+
+                        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+                            writer.Write(playersList);
+
+                            using (Message response = Message.Create(Tags.CAN_JOIN_ROOM, writer))
+                                client.SendMessage(response, SendMode.Reliable);
+                        }
+
                         break;
                     case Tags.REQUEST_ROOMS_LIST:
                         this.sentRoomsListToClient(client);
@@ -116,22 +126,50 @@ public class RoomMaster : Plugin {
                         string roomId = reader.ReadString();
                         Room thisRoom = this.rooms[roomId];
 
-                        if (thisRoom.players.Count == thisRoom.maxNumberOfPlayers) {
+                        Logger.print("Client trying " + client.ID + " to join: " + thisRoom.players.Count);
+                        Logger.print("Client trying " + client.ID + " to join: " + this.rooms.ContainsKey(roomId));
+
+                        if (thisRoom.players.Count == thisRoom.maxNumberOfPlayers || !this.rooms.ContainsKey(roomId)) {
                             using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
                                 using (Message response = Message.Create(Tags.ROOM_NOT_AVAILABLE, writer))
                                     client.SendMessage(response, SendMode.Reliable);
                             }
                         } else {
-                            // TODO: for test only
                             // # = this player is room's leader
-                            string playersList = "Dan\n#Lucifer\nIonut\nAlexandru\nTerminator\nWTF\nAAAALO\nBarabula\n";
-                            
-                            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-                                writer.Write(playersList);
-
-                                using (Message response = Message.Create(Tags.CAN_JOIN_ROOM, writer))
-                                    client.SendMessage(response, SendMode.Reliable);
+                            // Add this player to the room
+                            thisRoom.players.Add(client, false);
+                            string playersList1 = "";
+                            foreach (KeyValuePair<IClient, bool> player in thisRoom.players) {
+                                Logger.print("PLM");
+                                Logger.print(RoomMaster.players[player.Key].ToString());
+                                playersList1 = playersList1 + RoomMaster.players[player.Key].name + "\n";
                             }
+
+                            Logger.print("List of players: " + playersList1);
+
+                            foreach(KeyValuePair<IClient, bool> player in thisRoom.players) {
+                                using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+                                    writer.Write(playersList1);
+
+                                    using (Message response = Message.Create(Tags.CAN_JOIN_ROOM, writer))
+                                        player.Key.SendMessage(response, SendMode.Reliable);
+                                }
+                            }
+                        }
+                        break;
+                    case Tags.START_GAME:
+                        string roomUuid = reader.ReadString();
+
+                        // set the message received handler to the room's one
+                        client.MessageReceived -= this.MessageReceived;
+                        client.MessageReceived += this.rooms[roomUuid].MessageReceived;
+                        break;
+                    case Tags.LEAVE_ROOM:
+                        string roomToLeaveId = reader.ReadString();
+                        Room room = this.rooms[roomToLeaveId];
+                        
+                        if (room.players.Count == 1) {
+                            this.rooms.Remove(roomToLeaveId);
                         }
                         break;
                 }
