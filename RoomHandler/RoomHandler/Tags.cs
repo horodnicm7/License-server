@@ -14,4 +14,14 @@ public class Tags {
     public const byte CAN_JOIN_ROOM = 8;
     public const byte LEAVE_ROOM = 9;
     public const byte START_GAME = 10;
+
+    public const byte PLAYER_MOVE = 100;
+    public const byte PLAYER_ROTATE = 101;
+    public const byte PLAYER_ATTACK = 102;
+    public const byte PLAYER_SPAWN_UNIT = 103;
+    public const byte PLAYER_UNIT_DEATH = 104;
+    public const byte PLAYER_STOP_UNIT = 105;
+    public const byte PLAYER_BUILD = 106;
+    public const byte PLAYER_GATHER_RESOURCE = 107;
+    public const byte PLAYER_TECHNOLOGY_UPGRADE = 108;
 }
