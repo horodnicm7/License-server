@@ -49,62 +49,6 @@ public class Room {
         return newLeader;
     }
 
-    private void handlePlayerUnitMove(Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            int newIndex = reader.ReadInt32();
-
-            // TODO: validate
-        }
-    }
-
-    private void handlePlayerUnitAttack(Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
-    }
-
-    private void handlePlayerUnitRotate(Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
-    }
-
-    private void handlePlayerUnitSpawn(Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
-    }
-
-    private void handlePlayerUnitDeath(Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
-    }
-
-    private void handlePlayerUnitStop(Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
-    }
-
-    private void handlePlayerBuild(Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
-    }
-
-    private void handlePlayerGatherResource(Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
-    }
-
-    private void handlePlayerTechnologyUpgrade(Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
-    }
-
     public void MessageReceived(object sender, MessageReceivedEventArgs e) {
         Logger.print("Message from new room");
         IClient client = e.Client;
@@ -112,33 +56,89 @@ public class Room {
         using (Message message = e.GetMessage() as Message) {
             switch (e.Tag) {
                 case Tags.PLAYER_MOVE:
-                    this.handlePlayerUnitMove(message);
+                    this.handlePlayerUnitMove(client, message);
                     break;
                 case Tags.PLAYER_ATTACK:
-                    this.handlePlayerUnitAttack(message);
+                    this.handlePlayerUnitAttack(client, message);
                     break;
                 case Tags.PLAYER_SPAWN_UNIT:
-                    this.handlePlayerUnitSpawn(message);
+                    this.handlePlayerUnitSpawn(client, message);
                     break;
                 case Tags.PLAYER_UNIT_DEATH:
-                    this.handlePlayerUnitDeath(message);
+                    this.handlePlayerUnitDeath(client, message);
                     break;
                 case Tags.PLAYER_STOP_UNIT:
-                    this.handlePlayerUnitStop(message);
+                    this.handlePlayerUnitStop(client, message);
                     break;
                 case Tags.PLAYER_BUILD:
-                    this.handlePlayerBuild(message);
+                    this.handlePlayerBuild(client, message);
                     break;
                 case Tags.PLAYER_ROTATE:
-                    this.handlePlayerUnitRotate(message);
+                    this.handlePlayerUnitRotate(client, message);
                     break;
                 case Tags.PLAYER_GATHER_RESOURCE:
-                    this.handlePlayerGatherResource(message);
+                    this.handlePlayerGatherResource(client, message);
                     break;
                 case Tags.PLAYER_TECHNOLOGY_UPGRADE:
-                    this.handlePlayerTechnologyUpgrade(message);
+                    this.handlePlayerTechnologyUpgrade(client, message);
                     break;
             }
+        }
+    }
+
+    private void handlePlayerUnitMove(IClient client, Message message) {
+        using (DarkRiftReader reader = message.GetReader()) {
+            int newIndex = reader.ReadInt32();
+
+            // TODO: validate
+        }
+    }
+
+    private void handlePlayerUnitAttack(IClient client, Message message) {
+        using (DarkRiftReader reader = message.GetReader()) {
+            // TODO: validate
+        }
+    }
+
+    private void handlePlayerUnitRotate(IClient client, Message message) {
+        using (DarkRiftReader reader = message.GetReader()) {
+            // TODO: validate
+        }
+    }
+
+    private void handlePlayerUnitSpawn(IClient client, Message message) {
+        using (DarkRiftReader reader = message.GetReader()) {
+            // TODO: validate
+        }
+    }
+
+    private void handlePlayerUnitDeath(IClient client, Message message) {
+        using (DarkRiftReader reader = message.GetReader()) {
+            // TODO: validate
+        }
+    }
+
+    private void handlePlayerUnitStop(IClient client, Message message) {
+        using (DarkRiftReader reader = message.GetReader()) {
+            // TODO: validate
+        }
+    }
+
+    private void handlePlayerBuild(IClient client, Message message) {
+        using (DarkRiftReader reader = message.GetReader()) {
+            // TODO: validate
+        }
+    }
+
+    private void handlePlayerGatherResource(IClient client, Message message) {
+        using (DarkRiftReader reader = message.GetReader()) {
+            // TODO: validate
+        }
+    }
+
+    private void handlePlayerTechnologyUpgrade(IClient client, Message message) {
+        using (DarkRiftReader reader = message.GetReader()) {
+            // TODO: validate
         }
     }
 }
