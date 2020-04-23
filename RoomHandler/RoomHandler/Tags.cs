@@ -15,6 +15,11 @@ public class Tags {
     public const byte LEAVE_ROOM = 9;
     public const byte START_GAME = 10;
 
+    public const byte SEND_TREE_DATA = 11;
+    public const byte SEND_GOLD_DATA = 12;
+    public const byte SEND_STONE_DATA = 13;
+    public const byte SEND_FARM_DATA = 14;
+
     // player specific actions performed during gameplay
     public const byte PLAYER_MOVE = 100;
     public const byte PLAYER_ROTATE = 101;
