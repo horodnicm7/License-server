@@ -7,3 +7,5 @@
 ## Project structure
 1. RoomHandler
 	- deals with client connections, disconnections and network message handling
+2. WorldMap
+	- deals with terrain generation and the world backend grid APIs
