@@ -5,3 +5,8 @@ RoomHandler/RoomHandler/obj/*
 RoomHandler/RoomHandler/bin/*
 Server/Logs/*
 Server/Plugins/*
+WorldMap/.vs/*
+WorldMap/WorldMap.sln
+WorldMap/WorldMap/WorldMap.csproj
+WorldMap/WorldMap/obj/*
+WorldMap/WorldMap/bin/*
