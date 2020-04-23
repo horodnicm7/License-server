@@ -26,9 +26,19 @@ public class TerrainGenerator {
         }
     }
 
-    public float[,] generateRandomPositionedTrees(int numberOfTrees, int maxIter = 100) {
+    public void markNewEntity(int position, byte entityType) {
         // TODO: must be moved on the server
-        float[,] positions = new float[numberOfTrees, 3];
+
+        int cell = this.worldMap.getCell(position);
+        if (this.worldMap.isFreeCell(cell)) {
+            this.worldMap.markCell(position, 0, entityType);
+        }
+    }
+
+    public int[] generateRandomPositionedTrees(int numberOfTrees, int maxIter = 100) {
+        // TODO: must be moved on the server
+        int[] positions = new int[numberOfTrees];
+        int randomLimit = this.worldMap.gridSize * this.worldMap.gridSize;
 
         for (int i = 0; i < numberOfTrees; i++) {
             Tuple<float, float, float> position = null;
@@ -39,28 +49,24 @@ public class TerrainGenerator {
                     // Debug.Log("Cannot generate random tree. No more random positions!");
                     return null;
                 }
-                position = getRandomPosition();
 
                 // TODO: check for grid integrity
-                int index = this.worldMap.getGridIndex(position.Item1, position.Item2, position.Item3);
+                int index = this.random.Next(randomLimit);
                 if (this.worldMap.isFreeIndexCell(index)) {
                     this.markNewEntity(position, 100);
+                    positions[i] = index;
                     break;
                 }
 
                 iter++;
             }
-
-            positions[i, 0] = position.Item1;
-            positions[i, 1] = position.Item2;
-            positions[i, 2] = position.Item3;
         }
 
         return positions;
     }
 
-    public float[,] generateRandomForests(int numberOfTrees, int numberOfForests = 10, int maxIter = 100) {
-        float[,] positions = new float[numberOfTrees, 3];
+    public int[] generateRandomForests(int numberOfTrees, int numberOfForests = 10, int maxIter = 100) {
+        int[] positions = new int[numberOfTrees];
 
         // randomly choose between 5 and 9 forests
         // int forestsNumber = this.random.Next(5, 10);
@@ -128,14 +134,9 @@ public class TerrainGenerator {
 
             while (queue.Count > 0) {
                 int gridIndex = queue.Dequeue();
+                positions[treeIndex] = gridIndex;
 
-                Tuple<float, float, float> treePos = this.worldMap.getCellPosition(gridIndex);
-
-                positions[treeIndex, 0] = treePos.Item1;
-                positions[treeIndex, 1] = treePos.Item2;
-                positions[treeIndex, 2] = treePos.Item3;
-
-                this.markNewEntity(treePos, 100);
+                this.markNewEntity(gridIndex, 100);
                 treeIndex++;
 
                 addedUntilNow++;
@@ -167,7 +168,7 @@ public class TerrainGenerator {
         return positions;
     }
 
-    public float[,] generateRandomMines(int noMines) {
+    public int[] generateRandomMines(int noMines) {
         /*
          * A gold/stone mine will take 4 tiles:
          *      |  |  |
@@ -177,13 +178,11 @@ public class TerrainGenerator {
          * CONVENTION: after a mine is exhausted, it will still be there, but as a dead one and still as 
          * a navigation obstacle
          */
-        float[,] minePositions = new float[noMines, 3];
+        int[] minePositions = new int[noMines];
 
         for (int i = 0; i < noMines; i++) {
             int index;
             while (true) {
-                // TODO: force these indexes to be uniformly distributed over the map. Now, usually, they
-                // are scattered on some map quarter
                 index = this.random.Next(0, this.worldMap.gridSize * this.worldMap.gridSize);
 
                 if (this.worldMap.isFreeIndexCell(index)) {
@@ -248,9 +247,7 @@ public class TerrainGenerator {
                     }
 
                     if (found) {
-                        minePositions[i, 0] = centerX;
-                        minePositions[i, 1] = midPos.Item2;
-                        minePositions[i, 2] = centerZ;
+                        minePositions[i] = index;
 
                         this.markNewEntity(new Tuple<float, float, float>(centerX, midPos.Item2, centerZ), 101);
                         break;

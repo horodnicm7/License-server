@@ -56,13 +56,13 @@ public class Room {
         TerrainGenerator generator = new TerrainGenerator(this.map);
         // 10% of the trees will be randomly positioned
         int noRandom = (int)(optimalParams.Item3 * 0.1f);
-        float[,] randomTreesPositions = generator.generateRandomPositionedTrees(noRandom);
+        int[] randomTreesPositions = generator.generateRandomPositionedTrees(noRandom);
 
         // 90% of the trees will be part of forests
-        float[,] forestsPositions = generator.generateRandomForests(optimalParams.Item3 - noRandom, optimalParams.Item4);
+        int[] forestsPositions = generator.generateRandomForests(optimalParams.Item3 - noRandom, optimalParams.Item4);
 
-        float[,] goldPositions = generator.generateRandomMines(optimalParams.Item5);
-        float[,] stonePositions = generator.generateRandomMines(optimalParams.Item6);
+        int[] goldPositions = generator.generateRandomMines(optimalParams.Item5);
+        int[] stonePositions = generator.generateRandomMines(optimalParams.Item6);
     }
 
     private List<IClient> getOtherPlayers(IClient except) {
