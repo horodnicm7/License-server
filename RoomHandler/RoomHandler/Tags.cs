@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-public class Tags {
+﻿public class Tags {
     public const byte CREATE_ROOM = 1;
     public const byte RECEIVE_PLAYER_NAME = 2;
     public const byte SEND_ROOM_IDENTIFIER = 3;
@@ -14,11 +10,14 @@ public class Tags {
     public const byte CAN_JOIN_ROOM = 8;
     public const byte LEAVE_ROOM = 9;
     public const byte START_GAME = 10;
+    public const byte CAN_START_GAME = 11;
 
-    public const byte SEND_TREE_DATA = 11;
-    public const byte SEND_GOLD_DATA = 12;
-    public const byte SEND_STONE_DATA = 13;
-    public const byte SEND_FARM_DATA = 14;
+    // terrain specific tags
+    public const byte SEND_TREE_DATA = 50;
+    public const byte SEND_GOLD_DATA = 51;
+    public const byte SEND_STONE_DATA = 52;
+    public const byte SEND_FARM_DATA = 53;
+    public const byte DONE_SENDING_TERRAIN = 60;
 
     // player specific actions performed during gameplay
     public const byte PLAYER_MOVE = 100;

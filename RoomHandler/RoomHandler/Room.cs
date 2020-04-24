@@ -47,6 +47,9 @@ public class Room {
             case 6:
                 result = new Tuple<ushort, float, int, int, int, int>(512, 4f, 4096, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
                 break;
+            case 1:
+                result = new Tuple<ushort, float, int, int, int, int>(512, 4f, 4096, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                break;
         }
 
         return result;
@@ -73,9 +76,9 @@ public class Room {
         Random random = new Random();
 
         // send trees positions in chunks of Room.treesPerPackage
-        for (int i = 0; i < optimalParams.Item3; i += Room.treesPerPackage + 1) {
+        for (int i = 0; i < optimalParams.Item3; i += Room.treesPerPackage) {
             using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-                for (int j = i; j <= (i + Room.treesPerPackage) && j < optimalParams.Item3; j++) {
+                for (int j = i; j < (i + Room.treesPerPackage) && j < optimalParams.Item3; j++) {
                     // generate a tree type
                     int treeType = random.Next(1, 4);
 
@@ -84,7 +87,7 @@ public class Room {
                     if (j < noRandom) {
                         writer.Write(randomTreesPositions[j]);
                     } else {
-                        writer.Write(forestsPositions[j]);
+                        writer.Write(forestsPositions[j - noRandom]);
                     }
                 }
 
@@ -122,6 +125,15 @@ public class Room {
                     foreach (KeyValuePair<IClient, bool> player in this.players) {
                         player.Key.SendMessage(response, SendMode.Reliable);
                     }
+                }
+            }
+        }
+
+        // notice the clients that all data has been sent
+        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+            using (Message response = Message.Create(Tags.DONE_SENDING_TERRAIN, writer)) {
+                foreach (KeyValuePair<IClient, bool> player in this.players) {
+                    player.Key.SendMessage(response, SendMode.Reliable);
                 }
             }
         }

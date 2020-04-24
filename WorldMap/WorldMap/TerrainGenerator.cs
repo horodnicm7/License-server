@@ -41,8 +41,6 @@ public class TerrainGenerator {
         int randomLimit = this.worldMap.gridSize * this.worldMap.gridSize;
 
         for (int i = 0; i < numberOfTrees; i++) {
-            Tuple<float, float, float> position = null;
-
             int iter = 0;
             while (true) {
                 if (iter >= maxIter) {
@@ -53,7 +51,7 @@ public class TerrainGenerator {
                 // TODO: check for grid integrity
                 int index = this.random.Next(randomLimit);
                 if (this.worldMap.isFreeIndexCell(index)) {
-                    this.markNewEntity(position, 100);
+                    this.markNewEntity(index, 100);
                     positions[i] = index;
                     break;
                 }
