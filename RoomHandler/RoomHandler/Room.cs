@@ -117,9 +117,9 @@ public class Room {
         }
 
         // send gold positions in chunks
-        for (int i = 0; i < noGoldMines; i += Room.goldChunkSize + 1) {
+        for (int i = 0; i < noGoldMines; i += Room.goldChunkSize) {
             using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-                for (int j = i; j <= (i + Room.goldChunkSize) && j < optimalParams.Item5; j++) {
+                for (int j = i; j < (i + Room.goldChunkSize) && j < noGoldMines; j++) {
                     ushort counter = this.map.getCounterValue(this.map.getCell(goldPositions[i]));
                     writer.Write(counter);
                     writer.Write(goldPositions[j]);
@@ -134,9 +134,9 @@ public class Room {
         }
 
         // send stone positions in chunks
-        for (int i = 0; i < noGoldMines; i += Room.stoneChunkSize + 1) {
+        for (int i = 0; i < noStoneMines; i += Room.stoneChunkSize) {
             using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-                for (int j = i; j <= (i + Room.stoneChunkSize) && j < optimalParams.Item6; j++) {
+                for (int j = i; j < (i + Room.stoneChunkSize) && j < noStoneMines; j++) {
                     ushort counter = this.map.getCounterValue(this.map.getCell(stonePositions[i]));
                     writer.Write(counter);
                     writer.Write(stonePositions[j]);
