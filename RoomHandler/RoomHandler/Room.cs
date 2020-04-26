@@ -83,7 +83,7 @@ public class Room {
         int noGoldMines = optimalParams.Item5 * Room.goldChunkSize;
         int noStoneMines = optimalParams.Item6 * Room.stoneChunkSize;
         int[] goldPositions = generator.generateRandomMines(noGoldMines);
-        int[] stonePositions = generator.generateRandomMines(noStoneMines);
+        int[] stonePositions = generator.generateRandomMines(noStoneMines, isGold: false);
 
         Random random = new Random();
 

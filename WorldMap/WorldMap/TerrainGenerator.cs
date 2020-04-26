@@ -191,8 +191,35 @@ public class TerrainGenerator {
                     int right = this.worldMap.getRightCellIndex(index);
                     int bottom = this.worldMap.getLowerCellIndex(index);
                     int left = this.worldMap.getLeftCellIndex(index);
+                    int topLeft = this.worldMap.getLeftCellIndex(top);
+                    int topRight = this.worldMap.getRightCellIndex(top);
+                    int bottomRight = this.worldMap.getRightCellIndex(bottom);
+                    int bottomLeft = this.worldMap.getLeftCellIndex(bottom);
 
-                    Tuple<float, float, float> midPos = this.worldMap.getCellPosition(index);
+                    int[] neededIndexes = new int[8] {
+                        top, right, bottom, left, topLeft, topRight, bottomLeft, bottomRight
+                    };
+
+                    bool available = true;
+                    for (int j = 0; j < 8; j++) {
+                        if (!this.worldMap.isFreeIndexCell(neededIndexes[j])) {
+                            available = false;
+                            break;
+                        }
+                    }
+
+                    if (available) {
+                        minePositions[i] = index;
+                        byte entityType = (isGold) ? EntityType.GOLD_MINE : EntityType.STONE_MINE;
+
+                        for (int j = 0; j < 8; j++) {
+                            this.markNewEntity(neededIndexes[j], entityType);
+                        }
+                        
+                        break;
+                    }
+
+                    /*Tuple<float, float, float> midPos = this.worldMap.getCellPosition(index);
                     bool found = false;
                     float centerX = 0, centerZ = 0;
 
@@ -247,7 +274,7 @@ public class TerrainGenerator {
 
                         this.markNewEntity(index, (isGold) ? EntityType.GOLD_MINE : EntityType.STONE_MINE);
                         break;
-                    }
+                    }*/
                 }
             }
         }
