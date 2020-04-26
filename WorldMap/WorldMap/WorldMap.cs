@@ -1,18 +1,19 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using System;
+﻿using System;
 
 /*
  * CONVENTIONS:
  * 1. the map is centered in (0, 0, 0)
- * 2. the map has square form
+ * 2. the map has squared form
+ * 
+ * One cell has the following form:
+ * |1 byte = entity type|1 byte = player id|2 bytes = key counter|
  */
 public class WorldMap {
     public ushort worldLength;
     public float cellLength;
     public ushort gridSize;
 
-    public static int keyCounter = 1;
+    public static ushort keyCounter = 1;
 
     private int[] world;
     private float halfCellLength;
@@ -65,8 +66,6 @@ public class WorldMap {
 
         // TODO: change this if you'll add terrain height
         y = 0;
-
-        //Debug.Log("Half: " + this.halfWorldLength + " " + this.halfGridSize + " " + this.gridSize);
 
         if (line <= this.halfGridSize) {
             // Z coord will be positive
@@ -123,7 +122,7 @@ public class WorldMap {
         return index;
     }
 
-    public int getUpperCell(int index) {
+    public int getUpperCellIndex(int index) {
         int line = index / this.gridSize;
         int col = index % this.gridSize;
 
@@ -134,7 +133,7 @@ public class WorldMap {
         return (line - 1) * this.gridSize + col;
     }
 
-    public int getLeftCell(int index) {
+    public int getLeftCellIndex(int index) {
         int line = index / this.gridSize;
         int col = index % this.gridSize;
 
@@ -145,7 +144,7 @@ public class WorldMap {
         return line * this.gridSize + (col - 1);
     }
 
-    public int getRightCell(int index) {
+    public int getRightCellIndex(int index) {
         int line = index / this.gridSize;
         int col = index % this.gridSize;
 
@@ -156,7 +155,7 @@ public class WorldMap {
         return line * this.gridSize + (col + 1);
     }
 
-    public int getLowerCell(int index) {
+    public int getLowerCellIndex(int index) {
         int line = index / this.gridSize;
         int col = index % this.gridSize;
 
@@ -171,20 +170,24 @@ public class WorldMap {
         return this.world[index];
     }
 
-    public int getPlayer(int cell) {
-        return cell >> 24;
+    public byte getPlayer(int cell) {
+        return (byte)((cell << 8) >> 24);
     }
 
-    /*public ushort getEntityType(ushort cell) {
-        return (ushort)((cell << 8) >> 8);
-    }*/
-
-    public int buildCell(int player, int id) {
-        return player | id;
+    public byte getEntityType(int cell) {
+        return (byte)(cell >> 24);
     }
 
-    public void markCell(int index, int player, int entityId) {
-        this.world[index] = this.buildCell(player, entityId);
+    public ushort getCounterValue(int cell) {
+        return (ushort)((cell << 16) >> 16);
+    }
+
+    public int buildCell(byte player, ushort counter, byte entityType) {
+        return (int)((int)(entityType << 24) | (int)(player << 16) | (int)(counter));
+    }
+
+    public void markCell(int index, byte player, byte entityType, ushort entityId) {
+        this.world[index] = this.buildCell(player, entityId, entityType);
     }
 
     public bool isFreeIndexCell(int index) {

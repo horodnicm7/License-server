@@ -4,39 +4,37 @@ using System;
 public class TerrainGenerator {
     private float minimum;
     private float maximum;
-    private System.Random random;
+    private static Random random = new Random();
 
     private WorldMap worldMap;
+
+    public ushort counter = 0;
 
     public TerrainGenerator(WorldMap worldMap) {
         this.worldMap = worldMap;
         this.minimum = -this.worldMap.worldLength / 2;
         this.maximum = -1 * minimum;
-        this.random = new System.Random();
     }
 
     public void markNewEntity(Tuple<float, float, float> position, byte entityType) {
-        // TODO: must be moved on the server
         int index = this.worldMap.getGridIndex(position.Item1, position.Item2, position.Item3);
-        //Debug.Log(position + " " + index);
 
         int cell = this.worldMap.getCell(index);
         if (this.worldMap.isFreeCell(cell)) {
-            this.worldMap.markCell(index, 0, entityType);
+            this.worldMap.markCell(index, 0, entityType, this.counter);
+            this.counter++;
         }
     }
 
     public void markNewEntity(int position, byte entityType) {
-        // TODO: must be moved on the server
-
         int cell = this.worldMap.getCell(position);
         if (this.worldMap.isFreeCell(cell)) {
-            this.worldMap.markCell(position, 0, entityType);
+            this.worldMap.markCell(position, 0, entityType, this.counter);
+            this.counter++;
         }
     }
 
     public int[] generateRandomPositionedTrees(int numberOfTrees, int maxIter = 100) {
-        // TODO: must be moved on the server
         int[] positions = new int[numberOfTrees];
         int randomLimit = this.worldMap.gridSize * this.worldMap.gridSize;
 
@@ -49,9 +47,11 @@ public class TerrainGenerator {
                 }
 
                 // TODO: check for grid integrity
-                int index = this.random.Next(randomLimit);
+                int index = TerrainGenerator.random.Next(randomLimit);
                 if (this.worldMap.isFreeIndexCell(index)) {
-                    this.markNewEntity(index, 100);
+                    int treeType = TerrainGenerator.random.Next(1, 4);
+                    this.markNewEntity(index, (byte)treeType);
+
                     positions[i] = index;
                     break;
                 }
@@ -82,9 +82,9 @@ public class TerrainGenerator {
         for (int i = 0; i < numberOfForests - 1; i++) {
             int forestSize;
             if (totalNoTrees < upperRandomLimit) {
-                forestSize = this.random.Next((int)(totalNoTrees / 1.3f), totalNoTrees);
+                forestSize = TerrainGenerator.random.Next((int)(totalNoTrees / 1.3f), totalNoTrees);
             } else {
-                forestSize = this.random.Next(lowerRandomLimit, upperRandomLimit);
+                forestSize = TerrainGenerator.random.Next(lowerRandomLimit, upperRandomLimit);
             }
 
             if (totalNoTrees - forestSize <= 0) {
@@ -97,14 +97,11 @@ public class TerrainGenerator {
             forestSizes[i] = forestSize;
             totalNoTrees -= forestSize;
             arrayLength++;
-
-            //Debug.Log("Forest size: " + forestSize);
         }
 
         // append the remaining trees to the last forest. Usually, this will be the largest one
         if (totalNoTrees > 0) {
             forestSizes[arrayLength] = totalNoTrees;
-            //Debug.Log("Last forest: " + totalNoTrees);
         }
 
         // start creating the last forest, as it is most probably the largest one
@@ -121,7 +118,7 @@ public class TerrainGenerator {
             while (true) {
                 // TODO: force these indexes to be uniformly distributed over the map. Now, usually, they
                 // are scattered on some map quarter
-                startIndex = this.random.Next(0, this.worldMap.gridSize * this.worldMap.gridSize);
+                startIndex = TerrainGenerator.random.Next(0, this.worldMap.gridSize * this.worldMap.gridSize);
 
                 if (this.worldMap.isFreeIndexCell(startIndex)) {
                     break;
@@ -134,7 +131,8 @@ public class TerrainGenerator {
                 int gridIndex = queue.Dequeue();
                 positions[treeIndex] = gridIndex;
 
-                this.markNewEntity(gridIndex, 100);
+                int treeType = TerrainGenerator.random.Next(1, 4);
+                this.markNewEntity(gridIndex, (byte) treeType);
                 treeIndex++;
 
                 addedUntilNow++;
@@ -143,15 +141,15 @@ public class TerrainGenerator {
                 }
 
                 int[] neighbours = {
-                    this.worldMap.getUpperCell(gridIndex),
-                    this.worldMap.getRightCell(gridIndex),
-                    this.worldMap.getLowerCell(gridIndex),
-                    this.worldMap.getLeftCell(gridIndex)
+                    this.worldMap.getUpperCellIndex(gridIndex),
+                    this.worldMap.getRightCellIndex(gridIndex),
+                    this.worldMap.getLowerCellIndex(gridIndex),
+                    this.worldMap.getLeftCellIndex(gridIndex)
                 };
 
                 // add noise to the normal traverse for obtaining iregular looking forests. We'll simply ignore a random 
                 // chosen direction
-                int noiseIndex = this.random.Next(4);
+                int noiseIndex = TerrainGenerator.random.Next(4);
                 neighbours[noiseIndex] = -1;
 
                 for (int j = 0; j < 4; j++) {
@@ -166,7 +164,7 @@ public class TerrainGenerator {
         return positions;
     }
 
-    public int[] generateRandomMines(int noMines) {
+    public int[] generateRandomMines(int noMines, bool isGold = true) {
         /*
          * A gold/stone mine will take 4 tiles:
          *      |  |  |
@@ -181,7 +179,7 @@ public class TerrainGenerator {
         for (int i = 0; i < noMines; i++) {
             int index;
             while (true) {
-                index = this.random.Next(0, this.worldMap.gridSize * this.worldMap.gridSize);
+                index = TerrainGenerator.random.Next(0, this.worldMap.gridSize * this.worldMap.gridSize);
 
                 if (this.worldMap.isFreeIndexCell(index)) {
                     /*
@@ -189,10 +187,10 @@ public class TerrainGenerator {
                      * | 4 | 5 | 6 |
                      * | 7 | 8 | 9 | 
                      */
-                    int top = this.worldMap.getUpperCell(index);
-                    int right = this.worldMap.getRightCell(index);
-                    int bottom = this.worldMap.getLowerCell(index);
-                    int left = this.worldMap.getLeftCell(index);
+                    int top = this.worldMap.getUpperCellIndex(index);
+                    int right = this.worldMap.getRightCellIndex(index);
+                    int bottom = this.worldMap.getLowerCellIndex(index);
+                    int left = this.worldMap.getLeftCellIndex(index);
 
                     Tuple<float, float, float> midPos = this.worldMap.getCellPosition(index);
                     bool found = false;
@@ -201,7 +199,7 @@ public class TerrainGenerator {
                     if (this.worldMap.isFreeIndexCell(top)) {
                         if (this.worldMap.isFreeIndexCell(left)) {
                             // 5 - 2 - 1- 4
-                            int topLeft = this.worldMap.getUpperCell(left);
+                            int topLeft = this.worldMap.getUpperCellIndex(left);
                             if (this.worldMap.isFreeIndexCell(topLeft)) {
                                 found = true;
                                 Tuple<float, float, float> leftPos = this.worldMap.getCellPosition(left);
@@ -211,7 +209,7 @@ public class TerrainGenerator {
                             }
                         } else if (this.worldMap.isFreeIndexCell(right)) {
                             // 5 - 2 - 3 - 6
-                            int topRight = this.worldMap.getUpperCell(right);
+                            int topRight = this.worldMap.getUpperCellIndex(right);
                             if (this.worldMap.isFreeIndexCell(topRight)) {
                                 found = true;
                                 Tuple<float, float, float> rightPos = this.worldMap.getCellPosition(right);
@@ -223,7 +221,7 @@ public class TerrainGenerator {
                     } else if (this.worldMap.isFreeIndexCell(bottom)) {
                         if (this.worldMap.isFreeIndexCell(left)) {
                             // 5 - 8 - 7 - 4
-                            int bottomLeft = this.worldMap.getLowerCell(left);
+                            int bottomLeft = this.worldMap.getLowerCellIndex(left);
                             if (this.worldMap.isFreeIndexCell(bottomLeft)) {
                                 found = true;
                                 Tuple<float, float, float> leftPos = this.worldMap.getCellPosition(left);
@@ -233,7 +231,7 @@ public class TerrainGenerator {
                             }
                         } else if (this.worldMap.isFreeIndexCell(right)) {
                             // 5 - 6 - 8 - 9
-                            int bottomRight = this.worldMap.getLowerCell(right);
+                            int bottomRight = this.worldMap.getLowerCellIndex(right);
                             if (this.worldMap.isFreeIndexCell(bottomRight)) {
                                 found = true;
                                 Tuple<float, float, float> rightPos = this.worldMap.getCellPosition(right);
@@ -247,7 +245,7 @@ public class TerrainGenerator {
                     if (found) {
                         minePositions[i] = index;
 
-                        this.markNewEntity(new Tuple<float, float, float>(centerX, midPos.Item2, centerZ), 101);
+                        this.markNewEntity(index, (isGold) ? EntityType.GOLD_MINE : EntityType.STONE_MINE);
                         break;
                     }
                 }
@@ -259,9 +257,9 @@ public class TerrainGenerator {
 
     private Tuple<float, float, float> getRandomPosition() {
         // TODO: must be moved on the server
-        float x = (float)(this.random.NextDouble()) * (this.maximum - this.minimum) + this.minimum;
+        float x = (float)(TerrainGenerator.random.NextDouble()) * (this.maximum - this.minimum) + this.minimum;
         float y = 0;
-        float z = (float)(this.random.NextDouble()) * (this.maximum - this.minimum) + this.minimum;
+        float z = (float)(TerrainGenerator.random.NextDouble()) * (this.maximum - this.minimum) + this.minimum;
 
         return new Tuple<float, float, float>(x, y, z);
     }

@@ -60,6 +60,18 @@ public class Room {
         Tuple<ushort, float, int, int, int, int> optimalParams = this.getOptimalWorldParams();
         this.map = new WorldMap(optimalParams.Item1, optimalParams.Item2);
 
+        // send general world data to players
+        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+            writer.Write(optimalParams.Item1); // world length
+            writer.Write(optimalParams.Item2); // cell size
+
+            using (Message response = Message.Create(Tags.SEND_WORLD_DATA, writer)) {
+                foreach (KeyValuePair<IClient, bool> player in this.players) {
+                    player.Key.SendMessage(response, SendMode.Reliable);
+                }
+            }
+        }
+
         TerrainGenerator generator = new TerrainGenerator(this.map);
         // 10% of the trees will be randomly positioned
         int noRandom = (int)(optimalParams.Item3 * 0.1f);
@@ -79,14 +91,19 @@ public class Room {
         for (int i = 0; i < optimalParams.Item3; i += Room.treesPerPackage) {
             using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
                 for (int j = i; j < (i + Room.treesPerPackage) && j < optimalParams.Item3; j++) {
-                    // generate a tree type
-                    int treeType = random.Next(1, 4);
-
-                    writer.Write((byte)treeType);
-
                     if (j < noRandom) {
+                        byte treeType = this.map.getEntityType(this.map.getCell(randomTreesPositions[j]));
+                        ushort counter = this.map.getCounterValue(this.map.getCell(randomTreesPositions[j]));
+
+                        writer.Write(treeType);
+                        writer.Write(counter);
                         writer.Write(randomTreesPositions[j]);
                     } else {
+                        byte treeType = this.map.getEntityType(this.map.getCell(forestsPositions[j - noRandom]));
+                        ushort counter = this.map.getCounterValue(this.map.getCell(forestsPositions[j - noRandom]));
+
+                        writer.Write(treeType);
+                        writer.Write(counter);
                         writer.Write(forestsPositions[j - noRandom]);
                     }
                 }
@@ -103,6 +120,8 @@ public class Room {
         for (int i = 0; i < noGoldMines; i += Room.goldChunkSize + 1) {
             using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
                 for (int j = i; j <= (i + Room.goldChunkSize) && j < optimalParams.Item5; j++) {
+                    ushort counter = this.map.getCounterValue(this.map.getCell(goldPositions[i]));
+                    writer.Write(counter);
                     writer.Write(goldPositions[j]);
                 }
 
@@ -118,6 +137,8 @@ public class Room {
         for (int i = 0; i < noGoldMines; i += Room.stoneChunkSize + 1) {
             using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
                 for (int j = i; j <= (i + Room.stoneChunkSize) && j < optimalParams.Item6; j++) {
+                    ushort counter = this.map.getCounterValue(this.map.getCell(stonePositions[i]));
+                    writer.Write(counter);
                     writer.Write(stonePositions[j]);
                 }
 
