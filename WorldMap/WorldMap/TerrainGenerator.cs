@@ -166,9 +166,10 @@ public class TerrainGenerator {
 
     public int[] generateRandomMines(int noMines, bool isGold = true) {
         /*
-         * A gold/stone mine will take 4 tiles:
-         *      |  |  |
-         *      |  |  |
+         * A gold/stone mine will take 9 tiles:
+         *      |  |  |  |
+         *      |  |  |  |
+         *      |  |  |  |
          * The mine's center will be in its center (viewing it from the game scene perspective)
          * 
          * CONVENTION: after a mine is exhausted, it will still be there, but as a dead one and still as 
