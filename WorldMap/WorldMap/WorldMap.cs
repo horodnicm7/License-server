@@ -201,4 +201,19 @@ public class WorldMap {
     public bool isFreeCell(int cell) {
         return cell == 0;
     }
+
+    public Tuple<int, int> getCoordinates(int index) {
+        int line = index / this.gridSize;
+        int col = index % this.gridSize;
+
+        return new Tuple<int, int>(line, col);
+    }
+
+    public int indexFromCoordinates(int line, int col) {
+        if (line < 0 || line >= this.gridSize || col < 0 || col >= this.gridSize) {
+            return -1;
+        }
+
+        return line * this.gridSize + col;
+    }
 }

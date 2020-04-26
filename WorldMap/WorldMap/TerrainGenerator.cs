@@ -218,68 +218,61 @@ public class TerrainGenerator {
                         
                         break;
                     }
-
-                    /*Tuple<float, float, float> midPos = this.worldMap.getCellPosition(index);
-                    bool found = false;
-                    float centerX = 0, centerZ = 0;
-
-                    if (this.worldMap.isFreeIndexCell(top)) {
-                        if (this.worldMap.isFreeIndexCell(left)) {
-                            // 5 - 2 - 1- 4
-                            int topLeft = this.worldMap.getUpperCellIndex(left);
-                            if (this.worldMap.isFreeIndexCell(topLeft)) {
-                                found = true;
-                                Tuple<float, float, float> leftPos = this.worldMap.getCellPosition(left);
-                                Tuple<float, float, float> topPos = this.worldMap.getCellPosition(top);
-                                centerX = (leftPos.Item1 + midPos.Item1) / 2;
-                                centerZ = (topPos.Item3 + midPos.Item3) / 2;
-                            }
-                        } else if (this.worldMap.isFreeIndexCell(right)) {
-                            // 5 - 2 - 3 - 6
-                            int topRight = this.worldMap.getUpperCellIndex(right);
-                            if (this.worldMap.isFreeIndexCell(topRight)) {
-                                found = true;
-                                Tuple<float, float, float> rightPos = this.worldMap.getCellPosition(right);
-                                Tuple<float, float, float> topPos = this.worldMap.getCellPosition(top);
-                                centerX = (rightPos.Item1 + midPos.Item1) / 2;
-                                centerZ = (topPos.Item3 + midPos.Item3) / 2;
-                            }
-                        }
-                    } else if (this.worldMap.isFreeIndexCell(bottom)) {
-                        if (this.worldMap.isFreeIndexCell(left)) {
-                            // 5 - 8 - 7 - 4
-                            int bottomLeft = this.worldMap.getLowerCellIndex(left);
-                            if (this.worldMap.isFreeIndexCell(bottomLeft)) {
-                                found = true;
-                                Tuple<float, float, float> leftPos = this.worldMap.getCellPosition(left);
-                                Tuple<float, float, float> bottomPos = this.worldMap.getCellPosition(bottom);
-                                centerX = (leftPos.Item1 + midPos.Item1) / 2;
-                                centerZ = (bottomPos.Item3 + midPos.Item3) / 2;
-                            }
-                        } else if (this.worldMap.isFreeIndexCell(right)) {
-                            // 5 - 6 - 8 - 9
-                            int bottomRight = this.worldMap.getLowerCellIndex(right);
-                            if (this.worldMap.isFreeIndexCell(bottomRight)) {
-                                found = true;
-                                Tuple<float, float, float> rightPos = this.worldMap.getCellPosition(right);
-                                Tuple<float, float, float> bottomPos = this.worldMap.getCellPosition(bottom);
-                                centerX = (rightPos.Item1 + midPos.Item1) / 2;
-                                centerZ = (bottomPos.Item3 + midPos.Item3) / 2;
-                            }
-                        }
-                    }
-
-                    if (found) {
-                        minePositions[i] = index;
-
-                        this.markNewEntity(index, (isGold) ? EntityType.GOLD_MINE : EntityType.STONE_MINE);
-                        break;
-                    }*/
                 }
             }
         }
 
         return minePositions;
+    }
+
+    public bool markBuilding(int centerIndex, byte width, byte height, byte type, byte player, ushort counter) {
+        // get 2D grid coordinates
+        Tuple<int, int> figureCenter = this.worldMap.getCoordinates(centerIndex);
+        int line = figureCenter.Item1;
+        int col = figureCenter.Item2;
+
+        // compute lengths
+        byte halfHorizontalDist = (byte)((width - 1) / 2);
+        byte halfVerticalDist = (byte)((height - 1) / 2);
+
+        // get the 4 corners
+        int topLeft = this.worldMap.indexFromCoordinates(line - halfVerticalDist, col - halfHorizontalDist);
+        int topRight = this.worldMap.indexFromCoordinates(line - halfVerticalDist, col + halfHorizontalDist);
+        int bottomLeft = this.worldMap.indexFromCoordinates(line + halfVerticalDist, col - halfHorizontalDist);
+        int bottomRight = this.worldMap.indexFromCoordinates(line + halfVerticalDist, col + halfHorizontalDist);
+
+        // check if you didn't fall out of the map
+        if (topLeft < 0 || topRight < 0 || bottomLeft < 0 || bottomRight < 0) {
+            return false;
+        }
+
+        // try every index that needs to be marked and check if it's available
+        int idx = 0;
+        line -= halfVerticalDist;
+        col -= halfHorizontalDist;
+
+        int[] indexesToMark = new int[width * height];
+
+        for (int i = 0; i < height; i++) {
+            for (int j = 0; j < width; j++, idx++) {
+                int newGridIndex = this.worldMap.indexFromCoordinates(line + i, col + j);
+
+                // can't place building here, as it's obstructed
+                if (!this.worldMap.isFreeIndexCell(newGridIndex)) {
+                    return false;
+                }
+
+                indexesToMark[idx] = newGridIndex;
+            }
+        }
+
+        // if it gets to here, then it's safe to mark this building on grid
+        for (int i = 0; i < width * height; i++) {
+            this.worldMap.markCell(indexesToMark[i], player, type, counter);
+        }
+
+        // signal that the building was successfuly placed
+        return true;
     }
 
     private Tuple<float, float, float> getRandomPosition() {
