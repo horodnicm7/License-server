@@ -17,6 +17,7 @@
     public const byte SEND_GOLD_DATA = 51;
     public const byte SEND_STONE_DATA = 52;
     public const byte SEND_FARM_DATA = 53;
+    public const byte SEND_PLAYER_DATA = 58;
     public const byte SEND_WORLD_DATA = 59;
     public const byte DONE_SENDING_TERRAIN = 60;
 

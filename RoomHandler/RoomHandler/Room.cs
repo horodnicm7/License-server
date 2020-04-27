@@ -150,6 +150,31 @@ public class Room {
             }
         }
 
+        // generate players data
+        Dictionary<byte, List<Tuple<int, int>>> playersData = generator.generatePlayers((byte)(this.players.Count));
+
+        // send data to every player
+        foreach(KeyValuePair<byte, List<Tuple<int, int>>> playerData in playersData) {
+            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+                byte length = (byte)(playerData.Value.Count);
+                writer.Write(length);
+
+                // TODO: this might be optimized to quit sending the player ID. Basically, entry.item2 will be 3 bytes,
+                // because we'll skip the first one (player ID)
+                foreach (Tuple<int, int> entry in playerData.Value) {
+                    writer.Write(entry.Item1);
+                    writer.Write(entry.Item2);
+                }
+
+                // TODO: send this data only to its player
+                using (Message response = Message.Create(Tags.SEND_PLAYER_DATA, writer)) {
+                    foreach (KeyValuePair<IClient, bool> player in this.players) {
+                        player.Key.SendMessage(response, SendMode.Reliable);
+                    }
+                }
+            }
+        }
+
         // notice the clients that all data has been sent
         using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
             using (Message response = Message.Create(Tags.DONE_SENDING_TERRAIN, writer)) {

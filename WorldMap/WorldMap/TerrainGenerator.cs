@@ -231,6 +231,12 @@ public class TerrainGenerator {
     }
 
     public bool markEntity(int centerIndex, byte width, byte height, byte type, byte player, ushort counter) {
+        /*
+         * Convention:
+         *  - the centerIndex MUST BE the top left corner
+         * Approach: compute a list of indexes (if possible) where to place this entity and place it if it's possible.
+         * Returns true if the entity could be placed, false otherwise.
+         */
         // get 2D grid coordinates
         Tuple<int, int> figureCenter = this.worldMap.getCoordinates(centerIndex);
         int line = figureCenter.Item1;
@@ -253,8 +259,8 @@ public class TerrainGenerator {
 
         // try every index that needs to be marked and check if it's available
         int idx = 0;
-        line -= halfVerticalDist;
-        col -= halfHorizontalDist;
+        /*line -= halfVerticalDist;
+        col -= halfHorizontalDist;*/
 
         int[] indexesToMark = new int[width * height];
 
@@ -295,6 +301,9 @@ public class TerrainGenerator {
     }
 
     private int placeEntity(byte type, byte playerId, Rectangle shape) {
+        /*
+         * Get a random grid index and start to place the entity there
+         */
         int gridIndex = 0;
         Size entitySize = SizeMapping.map(type);
 
@@ -413,6 +422,8 @@ public class TerrainGenerator {
                 int value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.HOUSE);
                 playerData.Add(new Tuple<int, int>(gridIndex, value));
             }
+
+            result.Add(playerId, playerData);
         }
 
         return result;
