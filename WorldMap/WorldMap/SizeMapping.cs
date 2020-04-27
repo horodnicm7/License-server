@@ -12,7 +12,8 @@ public static class SizeMapping {
         { EntityType.WALL, new Size(2, 2) },
         { EntityType.GATE, new Size(6, 2) },
         { EntityType.HOUSE, new Size(3, 3) },
-        { EntityType.GUARD_TOWER, new Size(2, 2) }
+        { EntityType.GUARD_TOWER, new Size(2, 2) },
+        { EntityType.VILLAGER, new Size(1, 1) }
     };
 
     public static Size map(byte type) {

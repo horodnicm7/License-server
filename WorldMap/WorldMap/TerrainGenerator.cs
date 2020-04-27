@@ -230,7 +230,7 @@ public class TerrainGenerator {
         return minePositions;
     }
 
-    public bool markBuilding(int centerIndex, byte width, byte height, byte type, byte player, ushort counter) {
+    public bool markEntity(int centerIndex, byte width, byte height, byte type, byte player, ushort counter) {
         // get 2D grid coordinates
         Tuple<int, int> figureCenter = this.worldMap.getCoordinates(centerIndex);
         int line = figureCenter.Item1;
@@ -280,6 +280,39 @@ public class TerrainGenerator {
         return true;
     }
 
+    private List<int> getStartIndexes(byte width, byte height, int startLine, int endLine, int startCol, int endCol) {
+        // TODO: implement this
+        /* Explanation: this method will return a list of top-left corner indexes where big cells of size height x width 
+         * could be placed, starting from there
+         */
+        List<int> result = new List<int>();
+
+        for (int i = startLine * this.worldMap.gridSize; i < (startLine + height) * this.worldMap.gridSize; i += this.worldMap.gridSize) {
+            
+        }
+
+        return result;
+    }
+
+    private int placeEntity(byte type, byte playerId, Rectangle shape) {
+        int gridIndex = 0;
+        Size entitySize = SizeMapping.map(type);
+
+        while (true) {
+            int randomLine = TerrainGenerator.random.Next(shape.topLeftLine, shape.bottomRightLine + 1);
+            int randomCol = TerrainGenerator.random.Next(shape.topLeftCol, shape.bottomRightCol + 1);
+
+            gridIndex = this.worldMap.indexFromCoordinates(randomLine, randomCol);
+
+            if (this.markEntity(gridIndex, entitySize.width, entitySize.height, EntityType.BARRACKS, playerId, this.counter)) {
+                this.counter++;
+                break;
+            }
+        }
+
+        return gridIndex;
+    }
+
     public Dictionary<byte, List<Tuple<int, int>>> generatePlayers(byte noPlayers) {
         Dictionary<byte, List<Tuple<int, int>>> result = new Dictionary<byte, List<Tuple<int, int>>>();
 
@@ -301,7 +334,9 @@ public class TerrainGenerator {
             bool foundCenter = false;
             int centerIndex = 0;
 
-            // try to find a suitable area to place the current player's units
+            List<Tuple<int, int>> playerData = new List<Tuple<int, int>>();
+
+            // try to find a suitable area to place the current player's units, with a certain degree of liberty
             while (!foundCenter) {
                 foundCenter = true;
 
@@ -318,7 +353,6 @@ public class TerrainGenerator {
                     for (int l = 0; l < TerrainGenerator.playerSquareSize; l++) {
                         int newGridIndex = this.worldMap.indexFromCoordinates(line + k, col + l);
 
-                        // can't place building here, as it's obstructed
                         if (!this.worldMap.isFreeIndexCell(newGridIndex)) {
                             allowedError++;
                         }
@@ -335,7 +369,7 @@ public class TerrainGenerator {
                 }
             }
 
-            // find
+            // place barracks
             Tuple<int, int> center = this.worldMap.getCoordinates(centerIndex);
             int centerLine = center.Item1;
             int centerCol = center.Item2;
@@ -344,22 +378,40 @@ public class TerrainGenerator {
             int squareMinLine = centerLine - (squareMaxLine - centerLine);
             int squareMinCol = centerCol - (squareMaxLine - centerLine);
             int squareMaxCol = centerCol + (squareMaxLine - centerLine);
+            Rectangle playerSquare = new Rectangle(squareMinLine, squareMinCol, squareMaxLine, squareMaxCol);
 
             if (hasBarracks) {
-                int gridIndex = 0;
-                Size barracksSize = SizeMapping.map(EntityType.BARRACKS);
+                int gridIndex = this.placeEntity(EntityType.BARRACKS, playerId, playerSquare);
 
-                while (true) {
-                    int randomLine = TerrainGenerator.random.Next(squareMinLine, squareMaxLine + 1);
-                    int randomCol = TerrainGenerator.random.Next(squareMinCol, squareMaxCol);
+                int value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.BARRACKS);
+                playerData.Add(new Tuple<int, int>(gridIndex, value));
+            }
 
-                    gridIndex = this.worldMap.indexFromCoordinates(randomLine, randomCol);
+            // place tower
+            if (hasTower) {
+                int gridIndex = this.placeEntity(EntityType.GUARD_TOWER, playerId, playerSquare);
+                Size towerSize = SizeMapping.map(EntityType.GUARD_TOWER);
 
-                    if (this.markBuilding(gridIndex, barracksSize.width, barracksSize.height, EntityType.BARRACKS, playerId, this.counter)) {
-                        this.counter++;
-                        break;
-                    }
-                }
+                int value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.GUARD_TOWER);
+                playerData.Add(new Tuple<int, int>(gridIndex, value));
+            }
+
+            // place houses
+            Size houseSize = SizeMapping.map(EntityType.HOUSE);
+            for (int w = 0; w < noHouses; w++) {
+                int gridIndex = this.placeEntity(EntityType.HOUSE, playerId, playerSquare);
+
+                int value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.HOUSE);
+                playerData.Add(new Tuple<int, int>(gridIndex, value));
+            }
+
+            // place villagers
+            Size workerSize = SizeMapping.map(EntityType.VILLAGER);
+            for (int w = 0; w < noWorkers; w++) {
+                int gridIndex = this.placeEntity(EntityType.VILLAGER, playerId, playerSquare);
+
+                int value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.HOUSE);
+                playerData.Add(new Tuple<int, int>(gridIndex, value));
             }
         }
 
