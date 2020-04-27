@@ -13,6 +13,7 @@
     public const byte WOOD_COLECTOR = 9;
     public const byte BARN = 10;
     public const byte GUARD_TOWER = 11;
+    public const byte HOUSE = 12;
 
     // army and villagers
     public const byte SWORDSMAN = 31;

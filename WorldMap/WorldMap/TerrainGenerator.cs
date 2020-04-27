@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using System;
 
 public class TerrainGenerator {
@@ -9,6 +10,9 @@ public class TerrainGenerator {
     private WorldMap worldMap;
 
     public ushort counter = 0;
+    public static ushort playerSquareTolerance = 10;
+    public static float acceptedDistanceBetweenPlayers = 50f;
+    public static byte playerSquareSize = 50;
 
     public TerrainGenerator(WorldMap worldMap) {
         this.worldMap = worldMap;
@@ -274,6 +278,92 @@ public class TerrainGenerator {
 
         // signal that the building was successfuly placed
         return true;
+    }
+
+    public Dictionary<byte, List<Tuple<int, int>>> generatePlayers(byte noPlayers) {
+        Dictionary<byte, List<Tuple<int, int>>> result = new Dictionary<byte, List<Tuple<int, int>>>();
+
+        // generate a random number of workers between 2 and 4 (inclusive)
+        int noWorkers = TerrainGenerator.random.Next(2, 5);
+
+        // generate a random number of houses between 2 and 4 (inclusive)
+        int noHouses = TerrainGenerator.random.Next(2, 5);
+
+        // generate flags for having in this order: barracks, defense tower
+        bool hasBarracks = (TerrainGenerator.random.Next(2) == 1);
+        bool hasTower = (TerrainGenerator.random.Next(2) == 1);
+
+        int randCenterStart = TerrainGenerator.playerSquareSize * this.worldMap.gridSize + TerrainGenerator.playerSquareSize;
+        int totalGridSize = this.worldMap.gridSize * this.worldMap.gridSize;
+        int randCenterMax = totalGridSize - this.worldMap.gridSize * TerrainGenerator.playerSquareSize;
+
+        for (byte playerId = 1, i = 0; i < noPlayers; playerId *= 2, i++) {
+            bool foundCenter = false;
+            int centerIndex = 0;
+
+            // try to find a suitable area to place the current player's units
+            while (!foundCenter) {
+                foundCenter = true;
+
+                centerIndex = TerrainGenerator.random.Next(randCenterStart, randCenterMax);
+
+                // get 2D grid coordinates
+                Tuple<int, int> figureCenter = this.worldMap.getCoordinates(centerIndex);
+                int line = figureCenter.Item1 - TerrainGenerator.playerSquareSize;
+                int col = figureCenter.Item2 - TerrainGenerator.playerSquareSize;
+
+                ushort allowedError = 0;
+
+                for (int k = 0; i < TerrainGenerator.playerSquareSize; k++) {
+                    for (int l = 0; l < TerrainGenerator.playerSquareSize; l++) {
+                        int newGridIndex = this.worldMap.indexFromCoordinates(line + k, col + l);
+
+                        // can't place building here, as it's obstructed
+                        if (!this.worldMap.isFreeIndexCell(newGridIndex)) {
+                            allowedError++;
+                        }
+
+                        if (allowedError > TerrainGenerator.playerSquareTolerance) {
+                            foundCenter = false;
+                            break;
+                        }
+                    }
+
+                    if (!foundCenter) {
+                        break;
+                    }
+                }
+            }
+
+            // find
+            Tuple<int, int> center = this.worldMap.getCoordinates(centerIndex);
+            int centerLine = center.Item1;
+            int centerCol = center.Item2;
+
+            int squareMaxLine = centerLine + (TerrainGenerator.playerSquareSize - 1) / 2;
+            int squareMinLine = centerLine - (squareMaxLine - centerLine);
+            int squareMinCol = centerCol - (squareMaxLine - centerLine);
+            int squareMaxCol = centerCol + (squareMaxLine - centerLine);
+
+            if (hasBarracks) {
+                int gridIndex = 0;
+                Size barracksSize = SizeMapping.map(EntityType.BARRACKS);
+
+                while (true) {
+                    int randomLine = TerrainGenerator.random.Next(squareMinLine, squareMaxLine + 1);
+                    int randomCol = TerrainGenerator.random.Next(squareMinCol, squareMaxCol);
+
+                    gridIndex = this.worldMap.indexFromCoordinates(randomLine, randomCol);
+
+                    if (this.markBuilding(gridIndex, barracksSize.width, barracksSize.height, EntityType.BARRACKS, playerId, this.counter)) {
+                        this.counter++;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 
     private Tuple<float, float, float> getRandomPosition() {
