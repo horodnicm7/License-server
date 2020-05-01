@@ -48,7 +48,7 @@ public class Room {
                 result = new Tuple<ushort, float, int, int, int, int>(512, 4f, 4096, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
                 break;
             case 1:
-                result = new Tuple<ushort, float, int, int, int, int>(512, 4f, 4096, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                result = new Tuple<ushort, float, int, int, int, int>(512, 1f, 1024, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
                 break;
         }
 
@@ -74,7 +74,7 @@ public class Room {
 
         TerrainGenerator generator = new TerrainGenerator(this.map);
         // 10% of the trees will be randomly positioned
-        int noRandom = (int)(optimalParams.Item3 * 0.1f);
+        int noRandom = (int)(optimalParams.Item3 * 0.05f);
         int[] randomTreesPositions = generator.generateRandomPositionedTrees(noRandom);
 
         // 90% of the trees will be part of forests
@@ -92,14 +92,14 @@ public class Room {
             using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
                 for (int j = i; j < (i + Room.treesPerPackage) && j < optimalParams.Item3; j++) {
                     if (j < noRandom) {
-                        byte treeType = this.map.getEntityType(this.map.getCell(randomTreesPositions[j]));
+                        byte treeType = (byte) (this.map.getEntityType(this.map.getCell(randomTreesPositions[j])) - EntityType.TREE_TYPE1 + 1);
                         ushort counter = this.map.getCounterValue(this.map.getCell(randomTreesPositions[j]));
 
                         writer.Write(treeType);
                         writer.Write(counter);
                         writer.Write(randomTreesPositions[j]);
                     } else {
-                        byte treeType = this.map.getEntityType(this.map.getCell(forestsPositions[j - noRandom]));
+                        byte treeType = (byte)(this.map.getEntityType(this.map.getCell(forestsPositions[j - noRandom])) - EntityType.TREE_TYPE1 + 1);
                         ushort counter = this.map.getCounterValue(this.map.getCell(forestsPositions[j - noRandom]));
 
                         writer.Write(treeType);

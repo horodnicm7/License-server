@@ -122,48 +122,72 @@ public class WorldMap {
         return index;
     }
 
-    public int getUpperCellIndex(int index) {
+    public int getUpperCellIndex(int index, bool fromCenter = false, int distV = 0, int distH = 0) {
         int line = index / this.gridSize;
         int col = index % this.gridSize;
 
-        if (line - 1 < 0) {
+        if (fromCenter) {
+            line -= 2 * distV;
+        }
+
+        line--;
+
+        if (line < distV) {
             return -1;
         }
 
-        return (line - 1) * this.gridSize + col;
+        return line * this.gridSize + col;
     }
 
-    public int getLeftCellIndex(int index) {
+    public int getLeftCellIndex(int index, bool fromCenter = false, int distV = 0, int distH = 0) {
         int line = index / this.gridSize;
         int col = index % this.gridSize;
 
-        if (col - 1 < 0) {
+        if (fromCenter) {
+            col -= 2 * distH;
+        }
+
+        col--;
+
+        if (col < distH) {
             return -1;
         }
 
-        return line * this.gridSize + (col - 1);
+        return line * this.gridSize + col;
     }
 
-    public int getRightCellIndex(int index) {
+    public int getRightCellIndex(int index, bool fromCenter = false, int distV = 0, int distH = 0) {
         int line = index / this.gridSize;
         int col = index % this.gridSize;
 
-        if (col + 1 >= this.gridSize) {
+        if (fromCenter) {
+            col += 2 * distH;
+        }
+
+        col++;
+
+        if (col >= this.gridSize - distH) {
             return -1;
         }
 
-        return line * this.gridSize + (col + 1);
+        return line * this.gridSize + col;
     }
 
-    public int getLowerCellIndex(int index) {
+    public int getLowerCellIndex(int index, bool fromCenter = false, int distV = 0, int distH = 0) {
         int line = index / this.gridSize;
         int col = index % this.gridSize;
 
-        if (line + 1 >= this.gridSize) {
+        if (fromCenter) {
+            line += 2 * distV;
+        }
+
+        line++;
+
+        if (line >= this.gridSize - distV) {
             return -1;
         }
 
-        return (line + 1) * this.gridSize + col;
+        return line * this.gridSize + col;
     }
 
     public int getCell(int index) {
@@ -215,5 +239,25 @@ public class WorldMap {
         }
 
         return line * this.gridSize + col;
+    }
+
+    public bool isFreeIndexSquare(int index, Size size, bool fromCenter = false, int distV = 0, int distH = 0) {
+        Tuple<int, int> gridPos = this.getCoordinates(index);
+
+        if (fromCenter) {
+            gridPos = new Tuple<int, int>(gridPos.Item1 - distV, gridPos.Item2 - distH);
+        }
+
+        for (int i = 0; i < size.height; i++) {
+            for (int j = 0; j < size.width; j++) {
+                int newIndex = this.indexFromCoordinates(gridPos.Item1 + i, gridPos.Item2 + j);
+
+                if (!this.isFreeIndexCell(newIndex)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 }

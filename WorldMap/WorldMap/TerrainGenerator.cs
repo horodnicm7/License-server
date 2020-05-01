@@ -10,7 +10,7 @@ public class TerrainGenerator {
     private WorldMap worldMap;
 
     public ushort counter = 0;
-    public static ushort playerSquareTolerance = 10;
+    public static ushort playerSquareTolerance = 150;
     public static float acceptedDistanceBetweenPlayers = 50f;
     public static byte playerSquareSize = 50;
 
@@ -30,17 +30,35 @@ public class TerrainGenerator {
         }
     }
 
-    public void markNewEntity(int position, byte entityType) {
-        int cell = this.worldMap.getCell(position);
-        if (this.worldMap.isFreeCell(cell)) {
-            this.worldMap.markCell(position, 0, entityType, this.counter);
-            this.counter++;
+    public void markNewEntity(int position, Size size, byte entityType, bool fromCenter = false, int distH = 0, int distV = 0) {
+        Tuple<int, int> gridPos = this.worldMap.getCoordinates(position);
+
+        if (fromCenter) {
+            gridPos = new Tuple<int, int>(gridPos.Item1 - distV, gridPos.Item2 - distH);
         }
+
+        for (int i = 0; i < size.height; i++) {
+            for (int j = 0; j < size.width; j++) {
+                int index = this.worldMap.indexFromCoordinates(gridPos.Item1 + i, gridPos.Item2 + j);
+
+                if (this.worldMap.isFreeIndexCell(index)) {
+                    this.worldMap.markCell(index, 0, entityType, this.counter);
+                } else {
+                    Console.WriteLine("Positioned (" + this.worldMap.getCell(index) + " " + this.worldMap.getCounterValue(this.worldMap.getCell(index)) + ")");
+                }
+            }
+        }
+
+        this.counter++;
     }
 
     public int[] generateRandomPositionedTrees(int numberOfTrees, int maxIter = 100) {
         int[] positions = new int[numberOfTrees];
         int randomLimit = this.worldMap.gridSize * this.worldMap.gridSize;
+        Size size = SizeMapping.map(EntityType.TREE_TYPE1);
+
+        int distV = (size.height - 1) / 2;
+        int distH = (size.width - 1) / 2;
 
         for (int i = 0; i < numberOfTrees; i++) {
             int iter = 0;
@@ -52,9 +70,9 @@ public class TerrainGenerator {
 
                 // TODO: check for grid integrity
                 int index = TerrainGenerator.random.Next(randomLimit);
-                if (this.worldMap.isFreeIndexCell(index)) {
-                    int treeType = TerrainGenerator.random.Next(1, 4);
-                    this.markNewEntity(index, (byte)treeType);
+                if (this.worldMap.isFreeIndexSquare(index, size, fromCenter: true, distH: distH, distV: distV)) {
+                    int treeType = EntityType.TREE_TYPE1 + TerrainGenerator.random.Next(1, 4) - 1; 
+                    this.markNewEntity(index, size, (byte)treeType, fromCenter: true, distH: distH, distV: distV);
 
                     positions[i] = index;
                     break;
@@ -110,7 +128,13 @@ public class TerrainGenerator {
 
         // start creating the last forest, as it is most probably the largest one
         int treeIndex = 0;
+
         Console.WriteLine("Actual number of forests: " + (arrayLength + 1));
+
+        Size size = SizeMapping.map(EntityType.TREE_TYPE1);
+
+        int distV = (size.height - 1) / 2;
+        int distH = (size.width - 1) / 2;
 
         for (int i = arrayLength; i >= 0; i--) {
             int forestSize = forestSizes[i];
@@ -120,11 +144,9 @@ public class TerrainGenerator {
 
             int startIndex;
             while (true) {
-                // TODO: force these indexes to be uniformly distributed over the map. Now, usually, they
-                // are scattered on some map quarter
                 startIndex = TerrainGenerator.random.Next(0, this.worldMap.gridSize * this.worldMap.gridSize);
 
-                if (this.worldMap.isFreeIndexCell(startIndex)) {
+                if (this.worldMap.isFreeIndexSquare(startIndex, size, fromCenter: true, distV: distV, distH: distH)) {
                     break;
                 }
             }
@@ -133,22 +155,12 @@ public class TerrainGenerator {
 
             while (queue.Count > 0) {
                 int gridIndex = queue.Dequeue();
-                positions[treeIndex] = gridIndex;
-
-                int treeType = TerrainGenerator.random.Next(1, 4);
-                this.markNewEntity(gridIndex, (byte) treeType);
-                treeIndex++;
-
-                addedUntilNow++;
-                if (addedUntilNow >= forestSize) {
-                    break;
-                }
-
+                
                 int[] neighbours = {
-                    this.worldMap.getUpperCellIndex(gridIndex),
-                    this.worldMap.getRightCellIndex(gridIndex),
-                    this.worldMap.getLowerCellIndex(gridIndex),
-                    this.worldMap.getLeftCellIndex(gridIndex)
+                    this.worldMap.getUpperCellIndex(gridIndex, fromCenter: true, distV: distV),
+                    this.worldMap.getRightCellIndex(gridIndex, fromCenter: true, distH: distH),
+                    this.worldMap.getLowerCellIndex(gridIndex, fromCenter: true, distV: distV),
+                    this.worldMap.getLeftCellIndex(gridIndex, fromCenter: true, distH: distH)
                 };
 
                 // add noise to the normal traverse for obtaining iregular looking forests. We'll simply ignore a random 
@@ -156,10 +168,28 @@ public class TerrainGenerator {
                 int noiseIndex = TerrainGenerator.random.Next(4);
                 neighbours[noiseIndex] = -1;
 
+                bool full = false;
+
                 for (int j = 0; j < 4; j++) {
-                    if (neighbours[j] != -1 && this.worldMap.isFreeIndexCell(neighbours[j])) {
+                    if (neighbours[j] != -1 && this.worldMap.isFreeIndexSquare(neighbours[j], size, fromCenter: true, distV: distV, distH: distH)) {
                         queue.Enqueue(neighbours[j]);
+
+                        addedUntilNow++;
+                        positions[treeIndex] = neighbours[j];
+
+                        int treeType = EntityType.TREE_TYPE1 + TerrainGenerator.random.Next(1, 4) - 1;
+                        this.markNewEntity(neighbours[j], size, (byte)treeType, fromCenter: true, distV: distV, distH: distH);
+                        treeIndex++;
+
+                        if (addedUntilNow >= forestSize) {
+                            full = true;
+                            break;
+                        }
                     }
+                }
+
+                if (full) {
+                    break;
                 }
             }
 
@@ -180,49 +210,22 @@ public class TerrainGenerator {
          * a navigation obstacle
          */
         int[] minePositions = new int[noMines];
+        Size size = SizeMapping.map(EntityType.GOLD_MINE);
+
+        int distH = (size.width - 1) / 2;
+        int distV = (size.height - 1) / 2;
 
         for (int i = 0; i < noMines; i++) {
             int index;
             while (true) {
                 index = TerrainGenerator.random.Next(0, this.worldMap.gridSize * this.worldMap.gridSize);
 
-                if (this.worldMap.isFreeIndexCell(index)) {
-                    /*
-                     * | 1 | 2 | 3 |
-                     * | 4 | 5 | 6 |
-                     * | 7 | 8 | 9 | 
-                     */
-                    int top = this.worldMap.getUpperCellIndex(index);
-                    int right = this.worldMap.getRightCellIndex(index);
-                    int bottom = this.worldMap.getLowerCellIndex(index);
-                    int left = this.worldMap.getLeftCellIndex(index);
-                    int topLeft = this.worldMap.getLeftCellIndex(top);
-                    int topRight = this.worldMap.getRightCellIndex(top);
-                    int bottomRight = this.worldMap.getRightCellIndex(bottom);
-                    int bottomLeft = this.worldMap.getLeftCellIndex(bottom);
+                if (this.worldMap.isFreeIndexSquare(index, size, fromCenter: true, distV: distV, distH: distH)) {
+                    minePositions[i] = index;
+                    byte entityType = (isGold) ? EntityType.GOLD_MINE : EntityType.STONE_MINE;
 
-                    int[] neededIndexes = new int[8] {
-                        top, right, bottom, left, topLeft, topRight, bottomLeft, bottomRight
-                    };
-
-                    bool available = true;
-                    for (int j = 0; j < 8; j++) {
-                        if (!this.worldMap.isFreeIndexCell(neededIndexes[j])) {
-                            available = false;
-                            break;
-                        }
-                    }
-
-                    if (available) {
-                        minePositions[i] = index;
-                        byte entityType = (isGold) ? EntityType.GOLD_MINE : EntityType.STONE_MINE;
-
-                        for (int j = 0; j < 8; j++) {
-                            this.markNewEntity(neededIndexes[j], entityType);
-                        }
-                        
-                        break;
-                    }
+                    this.markNewEntity(index, size, entityType, fromCenter: true, distH: distH, distV: distV);
+                    break;
                 }
             }
         }
@@ -322,6 +325,64 @@ public class TerrainGenerator {
         return gridIndex;
     }
 
+    private int[] getMatchingRectangles(Size size, int howMany, int allowedTolerance = 0, int startLine = -1, int startCol = -1, int endLine = -1, int endCol = -1) {
+        int[] result = new int[howMany];
+        int completed = 0;
+        bool satisfying = false;
+
+        startLine = (startLine < 0) ? 0 : startLine;
+        startCol = (startCol < 0) ? 0 : startCol;
+        endLine = (endLine < 0) ? 0 : endLine;
+        endCol = (endCol < 0) ? 0 : endCol;
+
+        // TODO: optimization: keep precomputed values for number of obstacles on the first and last lines of your window
+        /*Tuple<int, int>[] line = new Tuple<int, int>[endCol - startCol + 1];
+        Tuple<int, int>[] column = new Tuple<int, int>[endLine - startLine + 1];
+        bool precomputed = false;*/
+
+        for (int i = startLine; i < endLine - size.height; i++) {
+            for (int j = startCol; j < endCol - size.width; i++) {
+                bool isCandidate = true;
+                int occupiedHere = 0;
+                int gridIndex = 0;
+
+                for (int k = 0; k < size.height; k++) {
+                    for (int l = 0; l < size.width; l++) {
+                        gridIndex = this.worldMap.indexFromCoordinates(i + k, j + l);
+
+                        if (!this.worldMap.isFreeIndexCell(gridIndex)) {
+                            occupiedHere++;
+
+                            if (occupiedHere > allowedTolerance) {
+                                isCandidate = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!isCandidate) {
+                        break;
+                    }
+                }
+
+                if (isCandidate) {
+                    result[completed++] = gridIndex;
+
+                    if (completed >= howMany) {
+                        satisfying = true;
+                        break;
+                    }
+                }
+            }
+
+            if (satisfying) {
+                break;
+            }
+        }
+
+        return result;
+    }
+
     public Dictionary<byte, List<Tuple<int, int>>> generatePlayers(byte noPlayers) {
         Dictionary<byte, List<Tuple<int, int>>> result = new Dictionary<byte, List<Tuple<int, int>>>();
 
@@ -335,49 +396,38 @@ public class TerrainGenerator {
         bool hasBarracks = (TerrainGenerator.random.Next(2) == 1);
         bool hasTower = (TerrainGenerator.random.Next(2) == 1);
 
+        Console.WriteLine("Noworkers: " + noWorkers);
+        Console.WriteLine("NoHouses: " + noHouses);
+        Console.WriteLine("Barracks: " + hasBarracks);
+        Console.WriteLine("Tower: " + hasTower);
+
         int randCenterStart = TerrainGenerator.playerSquareSize * this.worldMap.gridSize + TerrainGenerator.playerSquareSize;
         int totalGridSize = this.worldMap.gridSize * this.worldMap.gridSize;
         int randCenterMax = totalGridSize - this.worldMap.gridSize * TerrainGenerator.playerSquareSize;
 
-        for (byte playerId = 1, i = 0; i < noPlayers; playerId *= 2, i++) {
-            bool foundCenter = false;
-            int centerIndex = 0;
+        Console.WriteLine("Data: " + randCenterStart + " " + totalGridSize + " " + randCenterMax);
 
+        for (byte playerId = 1, i = 0; i < noPlayers; playerId *= 2, i++) {
             List<Tuple<int, int>> playerData = new List<Tuple<int, int>>();
 
             // try to find a suitable area to place the current player's units, with a certain degree of liberty
-            while (!foundCenter) {
-                foundCenter = true;
+            int[] centerIndexes = this.getMatchingRectangles(new Size(TerrainGenerator.playerSquareSize, TerrainGenerator.playerSquareSize), 10);
+            for (int j = 0; j < 10; j++) {
+                Console.WriteLine(centerIndexes[j]);
+            }
 
-                centerIndex = TerrainGenerator.random.Next(randCenterStart, randCenterMax);
-
-                // get 2D grid coordinates
-                Tuple<int, int> figureCenter = this.worldMap.getCoordinates(centerIndex);
-                int line = figureCenter.Item1 - TerrainGenerator.playerSquareSize;
-                int col = figureCenter.Item2 - TerrainGenerator.playerSquareSize;
-
-                ushort allowedError = 0;
-
-                for (int k = 0; i < TerrainGenerator.playerSquareSize; k++) {
-                    for (int l = 0; l < TerrainGenerator.playerSquareSize; l++) {
-                        int newGridIndex = this.worldMap.indexFromCoordinates(line + k, col + l);
-
-                        if (!this.worldMap.isFreeIndexCell(newGridIndex)) {
-                            allowedError++;
-                        }
-
-                        if (allowedError > TerrainGenerator.playerSquareTolerance) {
-                            foundCenter = false;
-                            break;
-                        }
-                    }
-
-                    if (!foundCenter) {
-                        break;
-                    }
+            int howMany = 10;
+            for (int j = 9; j >= 0; j--) {
+                if (centerIndexes[j] == 0) {
+                    howMany--;
+                } else {
+                    break;
                 }
             }
 
+            int centerIndex = TerrainGenerator.random.Next(howMany);
+            Console.WriteLine("Player center index: " + centerIndex);
+            
             // place barracks
             Tuple<int, int> center = this.worldMap.getCoordinates(centerIndex);
             int centerLine = center.Item1;
