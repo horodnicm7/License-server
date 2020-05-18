@@ -200,6 +200,25 @@ public class Room {
                 }
             }
         }
+
+        // notice the players about other players civilizations
+        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+            byte[] playerCivilizations = new byte[this.players.Count * 2];
+            int index = 0;
+            foreach(KeyValuePair<IClient, byte> playerPair in this.players) {
+                Player player = RoomMaster.players[playerPair.Key];
+                playerCivilizations[index++] = playerPair.Value;
+                playerCivilizations[index++] = player.civilization;
+                Console.Write(playerCivilizations[index - 2] + " " + playerCivilizations[index - 1] + " ");
+            }
+
+            writer.Write(playerCivilizations);
+            using (Message response = Message.Create(Tags.GET_PLAYER_CIVILIZATION, writer)) {
+                foreach (KeyValuePair<IClient, byte> player in this.players) {
+                    player.Key.SendMessage(response, SendMode.Reliable);
+                }
+            }
+        }
     }
 
     private List<IClient> getOtherPlayers(IClient except) {

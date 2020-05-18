@@ -7,6 +7,7 @@ public class Player {
     public Dictionary<string, Unit> buildings;
     public string name;
     public string roomUUID;
+    public byte civilization;
 
     // metadata
     private string ipAddress;

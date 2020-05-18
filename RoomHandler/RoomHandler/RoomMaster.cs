@@ -155,6 +155,11 @@ public class RoomMaster : Plugin {
                             this.rooms.Remove(roomToLeaveId);
                         }
                         break;
+                    case Tags.GET_PLAYER_CIVILIZATION:
+                        byte civId = reader.ReadByte();
+                        Player playerClass = RoomMaster.players[client];
+                        playerClass.civilization = civId;
+                        break;
                     case Tags.KICK_PLAYER_FROM_LOBBY:
 
                         break;

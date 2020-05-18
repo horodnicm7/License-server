@@ -438,6 +438,7 @@ public class TerrainGenerator {
                     startCol: col
                 );
 
+                // if the function couldn't compute the asked amount of indexes, get those that it computed
                 for (int j = 9; j >= 0; j--) {
                     if (centerIndexes[j] == 0) {
                         howMany--;
