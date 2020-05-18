@@ -1,5 +1,4 @@
 ﻿using System;
-
 /*
  * CONVENTIONS:
  * 1. the map is centered in (0, 0, 0)
@@ -36,26 +35,10 @@ public class WorldMap {
     }
 
     public Tuple<float, float> getCellCenter(float x, float y, float z) {
-        Tuple<float, float> result;
-
-        // TODO: might need to invert these if you rotate the world
         int wholePartX = (int)x;
         int wholePartZ = (int)z;
 
-        float moveX = this.halfCellLength;
-        float moveZ = this.halfCellLength;
-
-        if (wholePartX < 0) {
-            moveX *= -1;
-        }
-
-        if (wholePartZ < 0) {
-            moveZ *= -1;
-        }
-
-        result = new Tuple<float, float>(wholePartX + moveX, wholePartZ + moveZ);
-
-        return result;
+        return new Tuple<float, float>(wholePartX + this.halfCellLength, wholePartZ + this.halfCellLength);
     }
 
     public Tuple<float, float, float> getCellPosition(int index) {
@@ -63,63 +46,22 @@ public class WorldMap {
         int col = index % this.gridSize;
 
         float x, y, z;
-
+        x = col * this.cellLength + this.halfCellLength;
         // TODO: change this if you'll add terrain height
         y = 0;
-
-        if (line <= this.halfGridSize) {
-            // Z coord will be positive
-            z = this.halfWorldLength - (line * this.cellLength + this.halfCellLength);
-        } else {
-            // Z coord will be negative
-            z = this.halfWorldLength - (line * this.cellLength + this.halfCellLength);
-        }
-
-        if (col <= this.halfGridSize) {
-            // X coord will be negative
-            x = -(col * this.cellLength - this.halfCellLength);
-        } else {
-            // X coord will be positive
-            x = (col * this.cellLength + this.halfCellLength) - this.halfWorldLength;
-        }
+        z = line * this.cellLength + this.halfCellLength;
 
         return new Tuple<float, float, float>(x, y, z);
     }
 
     public int getGridIndex(float x, float y, float z) {
-        // the Y coord will be ignored, it's here only as a convention
-        int index = 0;
+        int wholePartX = (int)x;
+        int wholePartZ = (int)z;
 
-        // check for out of world coordinates
-        if (x > this.halfWorldLength || x < -this.halfWorldLength ||
-            z > this.halfWorldLength || x < -this.halfWorldLength) {
-
-            return -1;
-        }
-
-        // the normal case
-        // TODO: might need to invert these if you rotate the world
-        float wholePartX;
-        float wholePartZ;
-
-        if (x < 0) {
-            wholePartX = Math.Abs(x - this.halfCellLength);
-        } else {
-            wholePartX = x + this.halfWorldLength;
-        }
-
-        if (z < 0) {
-            wholePartZ = Math.Abs(z) + this.halfWorldLength;
-        } else {
-            wholePartZ = this.halfWorldLength - z;
-        }
-
-        int line = (int)(wholePartZ / this.cellLength);
         int col = (int)(wholePartX / this.cellLength);
+        int line = (int)(wholePartZ / this.cellLength);
 
-        index = line * this.gridSize + col;
-
-        return index;
+        return line * this.gridSize + col;
     }
 
     public int getUpperCellIndex(int index, bool fromCenter = false, int distV = 0, int distH = 0) {
@@ -259,5 +201,42 @@ public class WorldMap {
         }
 
         return true;
+    }
+
+    public void markIndexSquare(int index, Size size, byte entityType, byte playerId, ushort counter,
+        bool fromCenter = false, int distV = 0, int distH = 0) {
+
+        Tuple<int, int> gridPos = this.getCoordinates(index);
+
+        if (fromCenter) {
+            gridPos = new Tuple<int, int>(gridPos.Item1 - distV, gridPos.Item2 - distH);
+        }
+
+        for (int i = 0; i < size.height; i++) {
+            for (int j = 0; j < size.width; j++) {
+                int newIndex = this.indexFromCoordinates(gridPos.Item1 + i, gridPos.Item2 + j);
+
+                this.markCell(newIndex, playerId, entityType, counter);
+            }
+        }
+    }
+
+    public void cleanMarkedIndexSquare(int index, Size size, byte playerId, bool fromCenter = false, int distV = 0, int distH = 0) {
+        Tuple<int, int> gridPos = this.getCoordinates(index);
+
+        if (fromCenter) {
+            gridPos = new Tuple<int, int>(gridPos.Item1 - distV, gridPos.Item2 - distH);
+        }
+
+        for (int i = 0; i < size.height; i++) {
+            for (int j = 0; j < size.width; j++) {
+                int newIndex = this.indexFromCoordinates(gridPos.Item1 + i, gridPos.Item2 + j);
+                int cell = this.getCell(newIndex);
+
+                if (cell > 0 && this.getPlayer(cell) == playerId) {
+                    this.world[newIndex] = 0;
+                }
+            }
+        }
     }
 }

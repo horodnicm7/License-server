@@ -7,10 +7,12 @@ using DarkRift.Server;
 public class Room {
     // it will work with the instances from RoomMaster and this dictionary will only keep 
     // clients as keys and bool values meaning that a client is room's owner or not
-    public Dictionary<IClient, bool> players;
+    public Dictionary<IClient, byte> players;
     public string uuid;
     public string name;
     public byte maxNumberOfPlayers;
+    public IClient leader;
+    public byte maxPlayerId; // used for player id incrementation
 
     private WorldMap map;
     private const byte treesPerPackage = 8;
@@ -21,8 +23,14 @@ public class Room {
         this.uuid = uuid;
         this.name = name;
         this.maxNumberOfPlayers = maxNoPlayers;
+        this.maxPlayerId = 1;
 
-        this.players = new Dictionary<IClient, bool>();
+        this.players = new Dictionary<IClient, byte>();
+    }
+
+    public void ClearMemory() {
+        this.map = null;
+        this.players.Clear();
     }
 
     private Tuple<ushort, float, int, int, int, int> getOptimalWorldParams() {
@@ -42,13 +50,13 @@ public class Room {
                 result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 1024, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
                 break;
             case 4:
-                result = new Tuple<ushort, float, int, int, int, int>(256, 4f, 2048, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 2048, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
                 break;
             case 6:
-                result = new Tuple<ushort, float, int, int, int, int>(512, 4f, 4096, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 4096, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
                 break;
             case 1:
-                result = new Tuple<ushort, float, int, int, int, int>(512, 1f, 1024, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 256, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
                 break;
         }
 
@@ -66,7 +74,7 @@ public class Room {
             writer.Write(optimalParams.Item2); // cell size
 
             using (Message response = Message.Create(Tags.SEND_WORLD_DATA, writer)) {
-                foreach (KeyValuePair<IClient, bool> player in this.players) {
+                foreach (KeyValuePair<IClient, byte> player in this.players) {
                     player.Key.SendMessage(response, SendMode.Reliable);
                 }
             }
@@ -109,7 +117,7 @@ public class Room {
                 }
 
                 using (Message response = Message.Create(Tags.SEND_TREE_DATA, writer)) {
-                    foreach(KeyValuePair<IClient, bool> player in this.players) {
+                    foreach(KeyValuePair<IClient, byte> player in this.players) {
                         player.Key.SendMessage(response, SendMode.Reliable);
                     }
                 }
@@ -126,7 +134,7 @@ public class Room {
                 }
 
                 using (Message response = Message.Create(Tags.SEND_GOLD_DATA, writer)) {
-                    foreach (KeyValuePair<IClient, bool> player in this.players) {
+                    foreach (KeyValuePair<IClient, byte> player in this.players) {
                         player.Key.SendMessage(response, SendMode.Reliable);
                     }
                 }
@@ -143,9 +151,18 @@ public class Room {
                 }
 
                 using (Message response = Message.Create(Tags.SEND_STONE_DATA, writer)) {
-                    foreach (KeyValuePair<IClient, bool> player in this.players) {
+                    foreach (KeyValuePair<IClient, byte> player in this.players) {
                         player.Key.SendMessage(response, SendMode.Reliable);
                     }
+                }
+            }
+        }
+
+        // notice the clients that all terrain data has been sent
+        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+            using (Message response = Message.Create(Tags.DONE_SENDING_TERRAIN, writer)) {
+                foreach (KeyValuePair<IClient, byte> player in this.players) {
+                    player.Key.SendMessage(response, SendMode.Reliable);
                 }
             }
         }
@@ -168,17 +185,17 @@ public class Room {
 
                 // TODO: send this data only to its player
                 using (Message response = Message.Create(Tags.SEND_PLAYER_DATA, writer)) {
-                    foreach (KeyValuePair<IClient, bool> player in this.players) {
+                    foreach (KeyValuePair<IClient, byte> player in this.players) {
                         player.Key.SendMessage(response, SendMode.Reliable);
                     }
                 }
             }
         }
 
-        // notice the clients that all data has been sent
+        // notice the clients that the game can start
         using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-            using (Message response = Message.Create(Tags.DONE_SENDING_TERRAIN, writer)) {
-                foreach (KeyValuePair<IClient, bool> player in this.players) {
+            using (Message response = Message.Create(Tags.DONE_INIT_WORLD, writer)) {
+                foreach (KeyValuePair<IClient, byte> player in this.players) {
                     player.Key.SendMessage(response, SendMode.Reliable);
                 }
             }
@@ -188,7 +205,7 @@ public class Room {
     private List<IClient> getOtherPlayers(IClient except) {
         List<IClient> others = new List<IClient>();
 
-        foreach(KeyValuePair<IClient, bool> player in this.players) {
+        foreach(KeyValuePair<IClient, byte> player in this.players) {
             if (except != player.Key) {
                 others.Add(player.Key);
             }
@@ -197,21 +214,11 @@ public class Room {
         return others;
     }
 
-    public IClient changeLeader() {
-        bool first = true;
-        IClient newLeader = null;
-
-        foreach(KeyValuePair<IClient, bool> player in this.players) {
-            if (first) {
-                newLeader = player.Key;
-                this.players[player.Key] = true;
-                first = false;
-            } else {
-                this.players[player.Key] = false;
-            }
+    public void changeLeader() {
+        foreach(KeyValuePair<IClient, byte> player in this.players) {
+            this.leader = player.Key;
+            break;
         }
-
-        return newLeader;
     }
 
     public void MessageReceived(object sender, MessageReceivedEventArgs e) {

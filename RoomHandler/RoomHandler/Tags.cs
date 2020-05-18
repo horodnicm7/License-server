@@ -11,6 +11,7 @@
     public const byte LEAVE_ROOM = 9;
     public const byte START_GAME = 10;
     public const byte CAN_START_GAME = 11;
+    public const byte KICK_PLAYER_FROM_LOBBY = 12;
 
     // terrain specific tags
     public const byte SEND_TREE_DATA = 50;
@@ -20,6 +21,7 @@
     public const byte SEND_PLAYER_DATA = 58;
     public const byte SEND_WORLD_DATA = 59;
     public const byte DONE_SENDING_TERRAIN = 60;
+    public const byte DONE_INIT_WORLD = 61;
 
     // player specific actions performed during gameplay
     public const byte PLAYER_MOVE = 100;

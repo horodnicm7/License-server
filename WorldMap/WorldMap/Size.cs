@@ -1,8 +1,8 @@
 ﻿public class Size {
-    public byte width;
-    public byte height;
+    public int width;
+    public int height;
 
-    public Size(byte width, byte height) {
+    public Size(int width, int height) {
         this.width = width;
         this.height = height;
     }
