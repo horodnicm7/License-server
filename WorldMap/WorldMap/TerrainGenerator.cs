@@ -19,7 +19,7 @@ public class TerrainGenerator {
         this.minimum = -this.worldMap.worldLength / 2;
         this.maximum = -1 * minimum;
 
-        this.playerSquareSize = (int)(this.playerSquareSize / this.worldMap.cellLength);
+        //this.playerSquareSize = (int)(this.playerSquareSize / this.worldMap.cellLength);
     }
 
     public void markNewEntity(Tuple<float, float, float> position, byte entityType) {
@@ -405,54 +405,16 @@ public class TerrainGenerator {
         bool hasTower = true; // (TerrainGenerator.random.Next(2) == 1);
         int noSoldiers = TerrainGenerator.random.Next(1, 10);
 
-        Console.WriteLine("Noworkers: " + noWorkers);
-        Console.WriteLine("NoHouses: " + noHouses);
-        Console.WriteLine("Barracks: " + hasBarracks);
-        Console.WriteLine("Tower: " + hasTower);
-
         int randCenterStart = this.playerSquareSize * this.worldMap.gridSize + this.playerSquareSize;
         int totalGridSize = this.worldMap.gridSize * this.worldMap.gridSize;
         int randCenterMax = totalGridSize - this.worldMap.gridSize * this.playerSquareSize;
-
-        Console.WriteLine("Data: " + randCenterStart + " " + totalGridSize + " " + randCenterMax);
 
         for (byte playerId = 1, i = 0; i < noPlayers; playerId *= 2, i++) {
             List<Tuple<int, int>> playerData = new List<Tuple<int, int>>();
 
             // try to find a suitable area to place the current player's units, with a certain degree of liberty
-            int[] centerIndexes;
-            int howMany = 10;
-
-            while (true) {
-                int index = TerrainGenerator.random.Next(this.worldMap.gridSize);
-                int line = index / this.worldMap.worldLength;
-                int col = index % this.worldMap.worldLength;
-
-                Console.WriteLine("Trying... " + line + " " + col + " " + index);
-
-                centerIndexes = this.getMatchingRectangles(
-                    new Size(this.playerSquareSize, this.playerSquareSize),
-                    10,
-                    allowedTolerance: TerrainGenerator.playerSquareTolerance,
-                    startLine: line,
-                    startCol: col
-                );
-
-                // if the function couldn't compute the asked amount of indexes, get those that it computed
-                for (int j = 9; j >= 0; j--) {
-                    if (centerIndexes[j] == 0) {
-                        howMany--;
-                    } else {
-                        break;
-                    }
-                }
-
-                if (howMany > 0) {
-                    break;
-                }
-            }
-
-            int centerIndex = TerrainGenerator.random.Next(howMany);
+            int centerIndex = TerrainGenerator.random.Next(this.worldMap.gridSize * 5 + (int)(this.playerSquareSize / this.worldMap.cellLength),
+                this.worldMap.gridSquareSize - this.worldMap.gridSize * this.playerSquareSize);
             Console.WriteLine("Player center index: " + centerIndex);
 
             // place barracks

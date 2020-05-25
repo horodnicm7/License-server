@@ -18,8 +18,9 @@ public class WorldMap {
     private float halfCellLength;
     private ushort halfWorldLength;
     private int halfGridSize;
+    public int gridSquareSize;
 
-    public WorldMap(ushort worldLength = 1024, float cellLength = 0.5f) {
+    public WorldMap(ushort worldLength = 128, float cellLength = 0.5f) {
         this.worldLength = worldLength;
         this.cellLength = cellLength;
 
@@ -28,6 +29,7 @@ public class WorldMap {
         this.halfCellLength = this.cellLength / 2;
         this.halfWorldLength = (ushort)(this.worldLength / 2);
         this.halfGridSize = this.gridSize / 2;
+        this.gridSquareSize = this.gridSize * this.gridSize;
     }
 
     public void buildGridFromTerrain() {

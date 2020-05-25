@@ -157,6 +157,7 @@ public class RoomMaster : Plugin {
                         break;
                     case Tags.GET_PLAYER_CIVILIZATION:
                         byte civId = reader.ReadByte();
+                        Console.WriteLine("Civ ID: " + client + " " + civId);
                         Player playerClass = RoomMaster.players[client];
                         playerClass.civilization = civId;
                         break;

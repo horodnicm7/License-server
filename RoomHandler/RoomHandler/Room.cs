@@ -47,7 +47,7 @@ public class Room {
 
         switch (this.players.Count) {
             case 2:
-                result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 1024, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 256, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
                 break;
             case 4:
                 result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 2048, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
@@ -81,6 +81,10 @@ public class Room {
         }
 
         TerrainGenerator generator = new TerrainGenerator(this.map);
+
+        // generate players data
+        Dictionary<byte, List<Tuple<int, int>>> playersData = generator.generatePlayers((byte)(this.players.Count));
+
         // 10% of the trees will be randomly positioned
         int noRandom = (int)(optimalParams.Item3 * 0.05f);
         int[] randomTreesPositions = generator.generateRandomPositionedTrees(noRandom);
@@ -167,9 +171,6 @@ public class Room {
             }
         }
 
-        // generate players data
-        Dictionary<byte, List<Tuple<int, int>>> playersData = generator.generatePlayers((byte)(this.players.Count));
-
         // send data to every player
         foreach(KeyValuePair<byte, List<Tuple<int, int>>> playerData in playersData) {
             using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
@@ -186,7 +187,10 @@ public class Room {
                 // TODO: send this data only to its player
                 using (Message response = Message.Create(Tags.SEND_PLAYER_DATA, writer)) {
                     foreach (KeyValuePair<IClient, byte> player in this.players) {
-                        player.Key.SendMessage(response, SendMode.Reliable);
+                        // if the units belong to the current player
+                        if (player.Value == playerData.Key) {
+                            player.Key.SendMessage(response, SendMode.Reliable);
+                        }
                     }
                 }
             }
@@ -203,16 +207,12 @@ public class Room {
 
         // notice the players about other players civilizations
         using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-            byte[] playerCivilizations = new byte[this.players.Count * 2];
-            int index = 0;
             foreach(KeyValuePair<IClient, byte> playerPair in this.players) {
                 Player player = RoomMaster.players[playerPair.Key];
-                playerCivilizations[index++] = playerPair.Value;
-                playerCivilizations[index++] = player.civilization;
-                Console.Write(playerCivilizations[index - 2] + " " + playerCivilizations[index - 1] + " ");
+                writer.Write(playerPair.Value);
+                writer.Write(player.civilization);
             }
 
-            writer.Write(playerCivilizations);
             using (Message response = Message.Create(Tags.GET_PLAYER_CIVILIZATION, writer)) {
                 foreach (KeyValuePair<IClient, byte> player in this.players) {
                     player.Key.SendMessage(response, SendMode.Reliable);
@@ -221,7 +221,7 @@ public class Room {
         }
     }
 
-    private List<IClient> getOtherPlayers(IClient except) {
+    public List<IClient> getOtherPlayers(IClient except) {
         List<IClient> others = new List<IClient>();
 
         foreach(KeyValuePair<IClient, byte> player in this.players) {
