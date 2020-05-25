@@ -409,12 +409,18 @@ public class TerrainGenerator {
         int totalGridSize = this.worldMap.gridSize * this.worldMap.gridSize;
         int randCenterMax = totalGridSize - this.worldMap.gridSize * this.playerSquareSize;
 
+        // FOR TEST ONLY
+        int[] idxs = new int[2] { 20480, 20680};
+        int h = 0;
+
         for (byte playerId = 1, i = 0; i < noPlayers; playerId *= 2, i++) {
             List<Tuple<int, int>> playerData = new List<Tuple<int, int>>();
 
             // try to find a suitable area to place the current player's units, with a certain degree of liberty
-            int centerIndex = TerrainGenerator.random.Next(this.worldMap.gridSize * 5 + (int)(this.playerSquareSize / this.worldMap.cellLength),
-                this.worldMap.gridSquareSize - this.worldMap.gridSize * this.playerSquareSize);
+            //int centerIndex = TerrainGenerator.random.Next(this.worldMap.gridSize * 5 + (int)(this.playerSquareSize / this.worldMap.cellLength),
+            //    this.worldMap.gridSquareSize - this.worldMap.gridSize * this.playerSquareSize);
+
+            int centerIndex = idxs[h++];
             Console.WriteLine("Player center index: " + centerIndex);
 
             // place barracks
