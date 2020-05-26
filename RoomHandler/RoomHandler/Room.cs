@@ -241,7 +241,6 @@ public class Room {
     }
 
     public void MessageReceived(object sender, MessageReceivedEventArgs e) {
-        Logger.print("Message from new room");
         IClient client = e.Client;
 
         using (Message message = e.GetMessage() as Message) {
@@ -303,18 +302,35 @@ public class Room {
     }
 
     private void handlePlayerUnitSpawn(ref IClient client, ref DarkRiftReader legacyReader) {
+        int gridIndex = legacyReader.ReadInt32();
+        int gridValue = legacyReader.ReadInt32();
 
+        Console.WriteLine("Spawn position received at: " + gridIndex + " " + gridValue);
     }
 
     private void handlePlayerUnitMove(ref IClient client, ref DarkRiftReader legacyReader) {
-        
-    }
+        short unitIndex = legacyReader.ReadInt16();
+        short wholeX = legacyReader.ReadInt16();
+        short fractionalX = legacyReader.ReadInt16();
+        short wholeZ = legacyReader.ReadInt16();
+        short fractionalZ = legacyReader.ReadInt16();
 
-    private void handlePlayerUnitAttack(ref IClient client, ref DarkRiftReader legacyReader) {
+        float x = FloatIntConverter.convertInt(wholeX, fractionalX);
+        float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
 
+        Console.WriteLine("Unit " + unitIndex + " move: " + wholeX + "," + fractionalX + " " + wholeZ + "," + fractionalZ + "    " + x + " " + z);
     }
 
     private void handlePlayerUnitRotate(ref IClient client, ref DarkRiftReader legacyReader) {
+        short unitIndex = legacyReader.ReadInt16();
+        short wholeY = legacyReader.ReadInt16();
+        short fractionalY = legacyReader.ReadInt16();
+
+        float rotY = FloatIntConverter.convertInt(wholeY, fractionalY);
+        Console.WriteLine("Rotation: " + unitIndex + " with: " + rotY);
+    }
+
+    private void handlePlayerUnitAttack(ref IClient client, ref DarkRiftReader legacyReader) {
 
     }
 

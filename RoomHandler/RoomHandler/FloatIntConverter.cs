@@ -10,7 +10,7 @@ public class FloatIntConverter {
 
     public static float convertInt(short whole, short fractional) {
         float result = whole;
-        result += (float)(fractional / 1000);
+        result += (float)(fractional / 1000f);
 
         return result;
     }
