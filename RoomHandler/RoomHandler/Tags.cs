@@ -34,6 +34,7 @@
     public const byte PLAYER_BUILD = 106;
     public const byte PLAYER_GATHER_RESOURCE = 107;
     public const byte PLAYER_TECHNOLOGY_UPGRADE = 108;
+    public const byte MIXED_MESSAGE = 109; // signal a package composed from smaller packages
 
     // ACKs or NACKs received by players during gameplay
     public const byte PLAYER_ACTION_VALIDATION = 120;

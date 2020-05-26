@@ -245,91 +245,96 @@ public class Room {
         IClient client = e.Client;
 
         using (Message message = e.GetMessage() as Message) {
+            DarkRiftReader reader = message.GetReader();
             switch (e.Tag) {
+                case Tags.MIXED_MESSAGE:
+                    this.handleMixedMessage(ref client, ref reader);
+                    break;
                 case Tags.PLAYER_MOVE:
-                    this.handlePlayerUnitMove(client, message);
+                    this.handlePlayerUnitMove(ref client, ref reader);
                     break;
                 case Tags.PLAYER_ATTACK:
-                    this.handlePlayerUnitAttack(client, message);
+                    this.handlePlayerUnitAttack(ref client, ref reader);
                     break;
                 case Tags.PLAYER_SPAWN_UNIT:
-                    this.handlePlayerUnitSpawn(client, message);
+                    this.handlePlayerUnitSpawn(ref client, ref reader);
                     break;
                 case Tags.PLAYER_UNIT_DEATH:
-                    this.handlePlayerUnitDeath(client, message);
+                    this.handlePlayerUnitDeath(ref client, ref reader);
                     break;
                 case Tags.PLAYER_STOP_UNIT:
-                    this.handlePlayerUnitStop(client, message);
+                    this.handlePlayerUnitStop(ref client, ref reader);
                     break;
                 case Tags.PLAYER_BUILD:
-                    this.handlePlayerBuild(client, message);
+                    this.handlePlayerBuild(ref client, ref reader);
                     break;
                 case Tags.PLAYER_ROTATE:
-                    this.handlePlayerUnitRotate(client, message);
+                    this.handlePlayerUnitRotate(ref client, ref reader);
                     break;
                 case Tags.PLAYER_GATHER_RESOURCE:
-                    this.handlePlayerGatherResource(client, message);
+                    this.handlePlayerGatherResource(ref client, ref reader);
                     break;
                 case Tags.PLAYER_TECHNOLOGY_UPGRADE:
-                    this.handlePlayerTechnologyUpgrade(client, message);
+                    this.handlePlayerTechnologyUpgrade(ref client, ref reader);
                     break;
             }
         }
     }
 
-    private void handlePlayerUnitMove(IClient client, Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            int newIndex = reader.ReadInt32();
+    private void handleMixedMessage(ref IClient client, ref DarkRiftReader legacyReader) {     
+        while(legacyReader.Position != legacyReader.Length) {
+            byte tag = legacyReader.ReadByte();
 
-            // TODO: validate
+            switch (tag) {
+                case Tags.PLAYER_SPAWN_UNIT:
+                    this.handlePlayerUnitSpawn(ref client, ref legacyReader);
+                    break;
+                case Tags.PLAYER_ATTACK:
+                    this.handlePlayerUnitAttack(ref client, ref legacyReader);
+                    break;
+                case Tags.PLAYER_MOVE:
+                    this.handlePlayerUnitMove(ref client, ref legacyReader);
+                    break;
+                case Tags.PLAYER_ROTATE:
+                    this.handlePlayerUnitRotate(ref client, ref legacyReader);
+                    break;
+            }
         }
     }
 
-    private void handlePlayerUnitAttack(IClient client, Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
+    private void handlePlayerUnitSpawn(ref IClient client, ref DarkRiftReader legacyReader) {
+
     }
 
-    private void handlePlayerUnitRotate(IClient client, Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
+    private void handlePlayerUnitMove(ref IClient client, ref DarkRiftReader legacyReader) {
+        
     }
 
-    private void handlePlayerUnitSpawn(IClient client, Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
+    private void handlePlayerUnitAttack(ref IClient client, ref DarkRiftReader legacyReader) {
+
     }
 
-    private void handlePlayerUnitDeath(IClient client, Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
+    private void handlePlayerUnitRotate(ref IClient client, ref DarkRiftReader legacyReader) {
+
     }
 
-    private void handlePlayerUnitStop(IClient client, Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
+    private void handlePlayerUnitDeath(ref IClient client, ref DarkRiftReader legacyReader) {
+
     }
 
-    private void handlePlayerBuild(IClient client, Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
+    private void handlePlayerUnitStop(ref IClient client, ref DarkRiftReader legacyReader) {
+
     }
 
-    private void handlePlayerGatherResource(IClient client, Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
+    private void handlePlayerBuild(ref IClient client, ref DarkRiftReader legacyReader) {
+
     }
 
-    private void handlePlayerTechnologyUpgrade(IClient client, Message message) {
-        using (DarkRiftReader reader = message.GetReader()) {
-            // TODO: validate
-        }
+    private void handlePlayerGatherResource(ref IClient client, ref DarkRiftReader legacyReader) {
+
+    }
+
+    private void handlePlayerTechnologyUpgrade(ref IClient client, ref DarkRiftReader legacyReader) {
+
     }
 }
