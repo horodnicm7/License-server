@@ -335,7 +335,9 @@ public class Room {
     }
 
     private void handlePlayerUnitDeath(ref IClient client, ref DarkRiftReader legacyReader) {
+        short unitIndex = legacyReader.ReadInt16();
 
+        Console.WriteLine("Unit death: " + unitIndex);
     }
 
     private void handlePlayerUnitStop(ref IClient client, ref DarkRiftReader legacyReader) {

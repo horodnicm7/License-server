@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Text;
 
 public class Player {
-    public Dictionary<string, Unit> army;
-    public Dictionary<string, Unit> buildings;
+    public Dictionary<ushort, Unit> army;
+    public Dictionary<ushort, Unit> buildings;
     public string name;
     public string roomUUID;
     public byte civilization;
@@ -16,7 +16,7 @@ public class Player {
     public Player(string name) {
         this.name = name;
 
-        this.army = new Dictionary<string, Unit>();
-        this.buildings = new Dictionary<string, Unit>();
+        this.army = new Dictionary<ushort, Unit>();
+        this.buildings = new Dictionary<ushort, Unit>();
     }
 }

@@ -4,12 +4,16 @@ using System.Text;
 
 public class Unit {
     public Vector3 position;
-    public float rotation;
-    byte type;
+    public short rotationWhole;
+    public short rotationFractional;
+    public int gridIndex;
 
-    public Unit(Vector3 position, float rotation, byte type) {
+    private byte type;
+
+    public Unit(Vector3 position, short rotationWhole, short rotationFractional, byte type) {
         this.position = position;
-        this.rotation = rotation;
+        this.rotationWhole = rotationWhole;
+        this.rotationFractional = rotationFractional;
         this.type = type;
     }
 }
