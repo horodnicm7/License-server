@@ -17,5 +17,7 @@ class SpawnMesage : PlayerMessage {
         writer.Write(Tags.PLAYER_SPAWN_UNIT);
         writer.Write(this.gridIndex);
         writer.Write(this.gridValue);
+        writer.Write(this.wholeRotationY);
+        writer.Write(this.fractionalRotationY);
     }
 }
