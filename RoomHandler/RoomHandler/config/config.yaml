@@ -1,0 +1,4 @@
+﻿network:
+	timer: 0.1
+	tcp-packet-limit: 20
+	udp-packet-limit: 30

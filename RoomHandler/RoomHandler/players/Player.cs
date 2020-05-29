@@ -5,6 +5,7 @@ using System.Text;
 public class Player {
     public Dictionary<ushort, Unit> army;
     public Dictionary<ushort, Unit> buildings;
+    public PlayerStats playerStats;
     public string name;
     public string roomUUID;
     public byte civilization;

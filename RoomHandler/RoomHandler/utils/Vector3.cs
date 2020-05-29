@@ -8,4 +8,8 @@ public class Vector3 {
         this.y = y;
         this.z = z;
     }
+
+    public static float distance(Vector3 a, Vector3 b) {
+        return (float)Math.Sqrt(Math.Pow(a.x - b.x, 2) + Math.Pow(a.y - b.y, 2) + Math.Pow(a.z - b.z, 2));
+    }
 }

@@ -7,7 +7,8 @@ using DarkRift.Server;
 public class Room {
     // it will work with the instances from RoomMaster and this dictionary will only keep 
     // clients as keys and bool values meaning that a client is room's owner or not
-    public Dictionary<IClient, byte> players;
+    public Dictionary<IClient, byte> playersIClientMapping;
+    public Dictionary<byte, IClient> playersByteMapping;
     public string uuid;
     public string name;
     public byte maxNumberOfPlayers;
@@ -19,203 +20,71 @@ public class Room {
     private const byte goldChunkSize = 10;
     private const byte stoneChunkSize = 5;
 
+    private byte maximumFieldOfView = 10;
+
+    private Dictionary<IClient, LinkedList<PlayerMessage>> tcpMessageQueue;
+    private Dictionary<IClient, LinkedList<PlayerMessage>> udpMessageQueue;
+    public static byte tcpPackageLimit = 20;
+    public static byte udpPackageLimit = 30;
+
     public Room(string uuid, string name, byte maxNoPlayers) {
         this.uuid = uuid;
         this.name = name;
         this.maxNumberOfPlayers = maxNoPlayers;
         this.maxPlayerId = 1;
 
-        this.players = new Dictionary<IClient, byte>();
+        this.udpMessageQueue = new Dictionary<IClient, LinkedList<PlayerMessage>>();
+        this.tcpMessageQueue = new Dictionary<IClient, LinkedList<PlayerMessage>>();
+
+        this.playersIClientMapping = new Dictionary<IClient, byte>();
+        this.playersByteMapping = new Dictionary<byte, IClient>();
     }
 
     public void ClearMemory() {
         this.map = null;
-        this.players.Clear();
+        this.playersIClientMapping.Clear();
+        this.playersByteMapping.Clear();
     }
 
-    private Tuple<ushort, float, int, int, int, int> getOptimalWorldParams() {
-        /*
-         * 1st value = world length
-         * 2nd value = cell size
-         * 3rd value = number of trees
-         * 4th value = number of forests
-         * 5th value = number of gold mines
-         * 6th value = number of stone mines
-         */
-        Tuple<ushort, float, int, int, int, int> result = null;
-        Random random = new Random();
+    public void sendDataToPlayersCallback() {
+        Console.WriteLine("Send data to players");
+        foreach(KeyValuePair<IClient, LinkedList<PlayerMessage>> playerQueue in this.udpMessageQueue) {
+            DarkRiftWriter udpWriter = DarkRiftWriter.Create();
+            byte sent = 0;
 
-        switch (this.players.Count) {
-            case 2:
-                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 256, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
-                break;
-            case 4:
-                result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 2048, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
-                break;
-            case 6:
-                result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 4096, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
-                break;
-            case 1:
-                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 256, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
-                break;
-        }
+            while (sent <= Room.udpPackageLimit && playerQueue.Value.Count > 0) {
+                PlayerMessage playerMessage = playerQueue.Value.First.Value;
+                playerMessage.serialize(ref udpWriter);
 
-        return result;
-    }
+                playerQueue.Value.RemoveFirst();
+                sent++;
+            }
 
-    public void sendWorldToPlayers() {
-        // init the world map
-        Tuple<ushort, float, int, int, int, int> optimalParams = this.getOptimalWorldParams();
-        this.map = new WorldMap(optimalParams.Item1, optimalParams.Item2);
-
-        // send general world data to players
-        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-            writer.Write(optimalParams.Item1); // world length
-            writer.Write(optimalParams.Item2); // cell size
-
-            using (Message response = Message.Create(Tags.SEND_WORLD_DATA, writer)) {
-                foreach (KeyValuePair<IClient, byte> player in this.players) {
-                    player.Key.SendMessage(response, SendMode.Reliable);
+            // if there are messages in this queue to send
+            if (sent > 0) {
+                using (Message response = Message.Create(Tags.MIXED_MESSAGE, udpWriter)) {
+                    playerQueue.Key.SendMessage(response, SendMode.Unreliable);
                 }
             }
         }
 
-        TerrainGenerator generator = new TerrainGenerator(this.map);
+        foreach(KeyValuePair<IClient, LinkedList<PlayerMessage>> playerQueue in this.tcpMessageQueue) {
+            DarkRiftWriter tcpWriter = DarkRiftWriter.Create();
 
-        // generate players data
-        Dictionary<byte, List<Tuple<int, int>>> playersData = generator.generatePlayers((byte)(this.players.Count));
+            byte sent = 0;
 
-        // 10% of the trees will be randomly positioned
-        int noRandom = (int)(optimalParams.Item3 * 0.05f);
-        int[] randomTreesPositions = generator.generateRandomPositionedTrees(noRandom);
+            while (sent <= Room.tcpPackageLimit && playerQueue.Value.Count > 0) {
+                PlayerMessage playerMessage = playerQueue.Value.First.Value;
+                playerMessage.serialize(ref tcpWriter);
 
-        // 90% of the trees will be part of forests
-        int[] forestsPositions = generator.generateRandomForests(optimalParams.Item3 - noRandom, optimalParams.Item4);
-
-        int noGoldMines = optimalParams.Item5 * Room.goldChunkSize;
-        int noStoneMines = optimalParams.Item6 * Room.stoneChunkSize;
-        int[] goldPositions = generator.generateRandomMines(noGoldMines);
-        int[] stonePositions = generator.generateRandomMines(noStoneMines, isGold: false);
-
-        Random random = new Random();
-
-        // send trees positions in chunks of Room.treesPerPackage
-        for (int i = 0; i < optimalParams.Item3; i += Room.treesPerPackage) {
-            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-                for (int j = i; j < (i + Room.treesPerPackage) && j < optimalParams.Item3; j++) {
-                    if (j < noRandom) {
-                        byte treeType = (byte) (this.map.getEntityType(this.map.getCell(randomTreesPositions[j])) - EntityType.TREE_TYPE1 + 1);
-                        ushort counter = this.map.getCounterValue(this.map.getCell(randomTreesPositions[j]));
-
-                        writer.Write(treeType);
-                        writer.Write(counter);
-                        writer.Write(randomTreesPositions[j]);
-                    } else {
-                        byte treeType = (byte)(this.map.getEntityType(this.map.getCell(forestsPositions[j - noRandom])) - EntityType.TREE_TYPE1 + 1);
-                        ushort counter = this.map.getCounterValue(this.map.getCell(forestsPositions[j - noRandom]));
-
-                        writer.Write(treeType);
-                        writer.Write(counter);
-                        writer.Write(forestsPositions[j - noRandom]);
-                    }
-                }
-
-                using (Message response = Message.Create(Tags.SEND_TREE_DATA, writer)) {
-                    foreach(KeyValuePair<IClient, byte> player in this.players) {
-                        player.Key.SendMessage(response, SendMode.Reliable);
-                    }
-                }
-            }
-        }
-
-        // send gold positions in chunks
-        for (int i = 0; i < noGoldMines; i += Room.goldChunkSize) {
-            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-                for (int j = i; j < (i + Room.goldChunkSize) && j < noGoldMines; j++) {
-                    ushort counter = this.map.getCounterValue(this.map.getCell(goldPositions[i]));
-                    writer.Write(counter);
-                    writer.Write(goldPositions[j]);
-                }
-
-                using (Message response = Message.Create(Tags.SEND_GOLD_DATA, writer)) {
-                    foreach (KeyValuePair<IClient, byte> player in this.players) {
-                        player.Key.SendMessage(response, SendMode.Reliable);
-                    }
-                }
-            }
-        }
-
-        // send stone positions in chunks
-        for (int i = 0; i < noStoneMines; i += Room.stoneChunkSize) {
-            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-                for (int j = i; j < (i + Room.stoneChunkSize) && j < noStoneMines; j++) {
-                    ushort counter = this.map.getCounterValue(this.map.getCell(stonePositions[i]));
-                    writer.Write(counter);
-                    writer.Write(stonePositions[j]);
-                }
-
-                using (Message response = Message.Create(Tags.SEND_STONE_DATA, writer)) {
-                    foreach (KeyValuePair<IClient, byte> player in this.players) {
-                        player.Key.SendMessage(response, SendMode.Reliable);
-                    }
-                }
-            }
-        }
-
-        // notice the clients that all terrain data has been sent
-        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-            using (Message response = Message.Create(Tags.DONE_SENDING_TERRAIN, writer)) {
-                foreach (KeyValuePair<IClient, byte> player in this.players) {
-                    player.Key.SendMessage(response, SendMode.Reliable);
-                }
-            }
-        }
-
-        // send data to every player
-        foreach(KeyValuePair<byte, List<Tuple<int, int>>> playerData in playersData) {
-            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-                byte length = (byte)(playerData.Value.Count);
-                writer.Write(length);
-
-                // TODO: this might be optimized to quit sending the player ID. Basically, entry.item2 will be 3 bytes,
-                // because we'll skip the first one (player ID)
-                foreach (Tuple<int, int> entry in playerData.Value) {
-                    writer.Write(entry.Item1);
-                    writer.Write(entry.Item2);
-                }
-
-                // TODO: send this data only to its player
-                using (Message response = Message.Create(Tags.SEND_PLAYER_DATA, writer)) {
-                    foreach (KeyValuePair<IClient, byte> player in this.players) {
-                        // if the units belong to the current player
-                        if (player.Value == playerData.Key) {
-                            player.Key.SendMessage(response, SendMode.Reliable);
-                        }
-                    }
-                }
-            }
-        }
-
-        // notice the clients that the game can start
-        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-            using (Message response = Message.Create(Tags.DONE_INIT_WORLD, writer)) {
-                foreach (KeyValuePair<IClient, byte> player in this.players) {
-                    player.Key.SendMessage(response, SendMode.Reliable);
-                }
-            }
-        }
-
-        // notice the players about other players civilizations
-        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-            foreach(KeyValuePair<IClient, byte> playerPair in this.players) {
-                Player player = RoomMaster.players[playerPair.Key];
-                writer.Write(playerPair.Value);
-                writer.Write(player.civilization);
+                playerQueue.Value.RemoveFirst();
+                sent++;
             }
 
-            using (Message response = Message.Create(Tags.GET_PLAYER_CIVILIZATION, writer)) {
-                foreach (KeyValuePair<IClient, byte> player in this.players) {
-                    player.Key.SendMessage(response, SendMode.Reliable);
+            // if there are messages in this queue to send
+            if (sent > 0) {
+                using (Message response = Message.Create(Tags.MIXED_MESSAGE, tcpWriter)) {
+                    playerQueue.Key.SendMessage(response, SendMode.Reliable);
                 }
             }
         }
@@ -224,7 +93,7 @@ public class Room {
     public List<IClient> getOtherPlayers(IClient except) {
         List<IClient> others = new List<IClient>();
 
-        foreach(KeyValuePair<IClient, byte> player in this.players) {
+        foreach(KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
             if (except != player.Key) {
                 others.Add(player.Key);
             }
@@ -234,7 +103,7 @@ public class Room {
     }
 
     public void changeLeader() {
-        foreach(KeyValuePair<IClient, byte> player in this.players) {
+        foreach(KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
             this.leader = player.Key;
             break;
         }
@@ -304,12 +173,154 @@ public class Room {
     private void handlePlayerUnitSpawn(ref IClient client, ref DarkRiftReader legacyReader) {
         int gridIndex = legacyReader.ReadInt32();
         int gridValue = legacyReader.ReadInt32();
+        short rotationWhole = legacyReader.ReadInt16();
+        short rotationFractional = legacyReader.ReadInt16();
 
         Console.WriteLine("Spawn position received at: " + gridIndex + " " + gridValue);
+
+        ushort counterValue = this.map.getCounterValue(gridValue);
+        Player player = RoomMaster.players[client];
+
+        byte type = this.map.getEntityType(gridValue);
+        bool sendSpawnToOthers = false;
+        Unit newUnit = null;
+
+        if (Unit.isBuilding(type)) {
+            if (!player.buildings.ContainsKey(counterValue)) {
+                Tuple<float, float, float> position = this.map.getCellPosition(gridIndex);
+                Vector3 positionVector = new Vector3(position.Item1, position.Item2, position.Item3);
+                newUnit = new Unit(positionVector, rotationWhole, rotationFractional, type, gridIndex);
+                player.buildings.Add(counterValue, newUnit);
+                sendSpawnToOthers = true;
+            }
+        } else if (!player.army.ContainsKey(counterValue)) {
+            Tuple<float, float, float> position = this.map.getCellPosition(gridIndex);
+            Vector3 positionVector = new Vector3(position.Item1, position.Item2, position.Item3);
+            newUnit = new Unit(positionVector, rotationWhole, rotationFractional, type, gridIndex);
+            player.army.Add(counterValue, newUnit);
+            sendSpawnToOthers = true;
+        }
+
+        if (sendSpawnToOthers) {
+            HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, newUnit);
+
+            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+                writer.Write(gridIndex);
+                writer.Write(gridValue);
+                writer.Write(rotationWhole);
+                writer.Write(rotationFractional);
+
+                using (Message response = Message.Create(Tags.PLAYER_SPAWN_UNIT, writer)) {
+                    foreach (byte playerId in seenBy) {
+                        IClient otherPlayer = this.playersByteMapping[playerId];
+                        otherPlayer.SendMessage(response, SendMode.Reliable);
+                    }
+                }
+            }
+        }
+    }
+
+    /*
+     *  This method uses a square with a length equal to the maximum fieldOfView for any player. It checks
+     *  every cell in this square to see if the current unit is visible to that one
+     */
+    private HashSet<byte> whoSeesThisUnitWithSquare(IClient unitOwner, Unit modifiedUnit) {
+        byte modifiedUnitPlayer = this.map.getPlayer(this.map.getPlayer(this.map.getCell(modifiedUnit.gridIndex)));
+        HashSet<byte> seenBy = new HashSet<byte>();
+
+        Tuple<int, int> indexCoords = this.map.getCoordinates(modifiedUnit.gridIndex);
+        int halfFieldOfView = this.maximumFieldOfView / 2;
+
+        // the line start in [0, this.map.gridSize)
+        int startLine = indexCoords.Item1 - halfFieldOfView;
+        startLine = (startLine < 0) ? 0 : startLine;
+
+        // the line end in [0, this.map.gridSize)
+        int endLine = indexCoords.Item1 + halfFieldOfView;
+        endLine = (endLine >= this.map.gridSize) ? this.map.gridSize - 1 : endLine;
+
+        // the column start in [0, this.map.gridSize)
+        int startCol = indexCoords.Item2 - halfFieldOfView;
+        startCol = (startCol < 0) ? 0 : startCol;
+
+        // the column end in [0, this.map.gridSize)
+        int endCol = indexCoords.Item2 + halfFieldOfView;
+        endCol = (endCol >= this.map.gridSize) ? this.map.gridSize - 1 : endCol;
+
+        // the starting column for the first and last lines
+        int startIndex = startLine * this.map.gridSize + startCol;
+        int endIndex = endLine * this.map.gridSize + startCol;
+
+        HashSet<ushort> visited = new HashSet<ushort>();
+
+        for (int line = startIndex; line <= endIndex; line += this.map.gridSize) {
+            for (int index = line; index <= line + endCol; index++) {
+                int cell = this.map.getCell(index);
+
+                if (!this.map.isFreeCell(cell)) {
+                    byte playerId = this.map.getPlayer(cell);
+                    // if it's and environment entity or there's already an enemy unit that sees this one or this unit 
+                    // has the same player ID as the modified one
+                    if (playerId == 0 || seenBy.Contains(playerId) || modifiedUnitPlayer == playerId) {
+                        continue;
+                    }
+
+                    ushort unitId = this.map.getCounterValue(cell);
+                    if (visited.Contains(unitId)) {
+                        continue;
+                    }
+
+                    byte unitType = this.map.getEntityType(cell);
+                    Player enemyPlayer = RoomMaster.players[this.playersByteMapping[playerId]];
+
+                    // TODO: treat buildings differently
+                    if (Unit.isBuilding(unitType)) {
+
+                    } else {
+                        Unit enemyUnit = enemyPlayer.army[unitId];
+                        // it's a moving unit and 0 centered locally
+                        float distance = Vector3.distance(enemyUnit.position, modifiedUnit.position);
+                        Stats enemyUnitStats = enemyPlayer.playerStats.map(unitType);
+                        if (distance <= enemyUnitStats.fieldOfView) {
+                            seenBy.Add(playerId);
+                        }
+                    }
+                }
+            }
+        }
+
+        return seenBy;
+    }
+
+    /*
+     * For every player, check if there's a unit who sees this one
+     */
+    private HashSet<IClient> whoSeesThisUnitGreedy(IClient unitOwner, Unit modifiedUnit) {
+        List<IClient> otherPlayers = this.getOtherPlayers(unitOwner);
+        HashSet<IClient> seenBy = new HashSet<IClient>();
+
+        foreach (IClient otherClient in otherPlayers) {
+            Player otherPlayer = RoomMaster.players[otherClient];
+
+            // we need only one enemy unit for each player to see the modified unit
+            foreach (KeyValuePair<ushort, Unit> unit in otherPlayer.army) {
+                float distance = Vector3.distance(modifiedUnit.position, unit.Value.position);
+                Stats unitStats = otherPlayer.playerStats.map(unit.Value.type);
+
+                if (distance <= unitStats.fieldOfView) {
+                    if (!seenBy.Contains(otherClient)) {
+                        seenBy.Add(otherClient);
+                        break;
+                    }
+                }
+            }
+        }
+
+        return seenBy;
     }
 
     private void handlePlayerUnitMove(ref IClient client, ref DarkRiftReader legacyReader) {
-        short unitIndex = legacyReader.ReadInt16();
+        ushort unitId = (ushort)legacyReader.ReadInt16();
         short wholeX = legacyReader.ReadInt16();
         short fractionalX = legacyReader.ReadInt16();
         short wholeZ = legacyReader.ReadInt16();
@@ -318,7 +329,28 @@ public class Room {
         float x = FloatIntConverter.convertInt(wholeX, fractionalX);
         float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
 
-        Console.WriteLine("Unit " + unitIndex + " move: " + wholeX + "," + fractionalX + " " + wholeZ + "," + fractionalZ + "    " + x + " " + z);
+        Console.WriteLine("Unit " + unitId + " move: " + wholeX + "," + fractionalX + " " + wholeZ + "," + fractionalZ + "    " + x + " " + z);
+
+        Player player = RoomMaster.players[client];
+        Unit unit = player.army[unitId];
+        unit.position.x = x;
+        unit.position.z = z;
+        unit.gridIndex = this.map.getGridIndex(x, unit.position.y, z);
+
+        HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit);
+
+        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+            
+
+            using (Message response = Message.Create(Tags.PLAYER_MOVE, writer)) {
+                foreach (byte playerId in seenBy) {
+                    IClient otherPlayer = this.playersByteMapping[playerId];
+                    otherPlayer.SendMessage(response, SendMode.Unreliable);
+                }
+            }
+        }
+
+
     }
 
     private void handlePlayerUnitRotate(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -354,5 +386,193 @@ public class Room {
 
     private void handlePlayerTechnologyUpgrade(ref IClient client, ref DarkRiftReader legacyReader) {
 
+    }
+
+    private Tuple<ushort, float, int, int, int, int> getOptimalWorldParams() {
+        /*
+         * 1st value = world length
+         * 2nd value = cell size
+         * 3rd value = number of trees
+         * 4th value = number of forests
+         * 5th value = number of gold mines
+         * 6th value = number of stone mines
+         */
+        Tuple<ushort, float, int, int, int, int> result = null;
+        Random random = new Random();
+
+        switch (this.playersIClientMapping.Count) {
+            case 2:
+                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 256, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                break;
+            case 4:
+                result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 2048, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                break;
+            case 6:
+                result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 4096, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                break;
+            case 1:
+                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 256, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                break;
+        }
+
+        return result;
+    }
+
+    public void sendWorldToPlayers() {
+        // init the world map
+        Tuple<ushort, float, int, int, int, int> optimalParams = this.getOptimalWorldParams();
+        this.map = new WorldMap(optimalParams.Item1, optimalParams.Item2);
+
+        // send general world data to players
+        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+            writer.Write(optimalParams.Item1); // world length
+            writer.Write(optimalParams.Item2); // cell size
+
+            using (Message response = Message.Create(Tags.SEND_WORLD_DATA, writer)) {
+                foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
+                    player.Key.SendMessage(response, SendMode.Reliable);
+                }
+            }
+        }
+
+        TerrainGenerator generator = new TerrainGenerator(this.map);
+
+        // generate players data
+        Dictionary<byte, List<Tuple<int, int>>> playersData = generator.generatePlayers((byte)(this.playersIClientMapping.Count));
+
+        // 10% of the trees will be randomly positioned
+        int noRandom = (int)(optimalParams.Item3 * 0.05f);
+        int[] randomTreesPositions = generator.generateRandomPositionedTrees(noRandom);
+
+        // 90% of the trees will be part of forests
+        int[] forestsPositions = generator.generateRandomForests(optimalParams.Item3 - noRandom, optimalParams.Item4);
+
+        int noGoldMines = optimalParams.Item5 * Room.goldChunkSize;
+        int noStoneMines = optimalParams.Item6 * Room.stoneChunkSize;
+        int[] goldPositions = generator.generateRandomMines(noGoldMines);
+        int[] stonePositions = generator.generateRandomMines(noStoneMines, isGold: false);
+
+        Random random = new Random();
+
+        // send trees positions in chunks of Room.treesPerPackage
+        for (int i = 0; i < optimalParams.Item3; i += Room.treesPerPackage) {
+            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+                for (int j = i; j < (i + Room.treesPerPackage) && j < optimalParams.Item3; j++) {
+                    if (j < noRandom) {
+                        byte treeType = (byte)(this.map.getEntityType(this.map.getCell(randomTreesPositions[j])) - EntityType.TREE_TYPE1 + 1);
+                        ushort counter = this.map.getCounterValue(this.map.getCell(randomTreesPositions[j]));
+
+                        writer.Write(treeType);
+                        writer.Write(counter);
+                        writer.Write(randomTreesPositions[j]);
+                    } else {
+                        byte treeType = (byte)(this.map.getEntityType(this.map.getCell(forestsPositions[j - noRandom])) - EntityType.TREE_TYPE1 + 1);
+                        ushort counter = this.map.getCounterValue(this.map.getCell(forestsPositions[j - noRandom]));
+
+                        writer.Write(treeType);
+                        writer.Write(counter);
+                        writer.Write(forestsPositions[j - noRandom]);
+                    }
+                }
+
+                using (Message response = Message.Create(Tags.SEND_TREE_DATA, writer)) {
+                    foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
+                        player.Key.SendMessage(response, SendMode.Reliable);
+                    }
+                }
+            }
+        }
+
+        // send gold positions in chunks
+        for (int i = 0; i < noGoldMines; i += Room.goldChunkSize) {
+            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+                for (int j = i; j < (i + Room.goldChunkSize) && j < noGoldMines; j++) {
+                    ushort counter = this.map.getCounterValue(this.map.getCell(goldPositions[i]));
+                    writer.Write(counter);
+                    writer.Write(goldPositions[j]);
+                }
+
+                using (Message response = Message.Create(Tags.SEND_GOLD_DATA, writer)) {
+                    foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
+                        player.Key.SendMessage(response, SendMode.Reliable);
+                    }
+                }
+            }
+        }
+
+        // send stone positions in chunks
+        for (int i = 0; i < noStoneMines; i += Room.stoneChunkSize) {
+            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+                for (int j = i; j < (i + Room.stoneChunkSize) && j < noStoneMines; j++) {
+                    ushort counter = this.map.getCounterValue(this.map.getCell(stonePositions[i]));
+                    writer.Write(counter);
+                    writer.Write(stonePositions[j]);
+                }
+
+                using (Message response = Message.Create(Tags.SEND_STONE_DATA, writer)) {
+                    foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
+                        player.Key.SendMessage(response, SendMode.Reliable);
+                    }
+                }
+            }
+        }
+
+        // notice the clients that all terrain data has been sent
+        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+            using (Message response = Message.Create(Tags.DONE_SENDING_TERRAIN, writer)) {
+                foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
+                    player.Key.SendMessage(response, SendMode.Reliable);
+                }
+            }
+        }
+
+        // send data to every player
+        foreach (KeyValuePair<byte, List<Tuple<int, int>>> playerData in playersData) {
+            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+                byte length = (byte)(playerData.Value.Count);
+                writer.Write(length);
+
+                // TODO: this might be optimized to quit sending the player ID. Basically, entry.item2 will be 3 bytes,
+                // because we'll skip the first one (player ID)
+                foreach (Tuple<int, int> entry in playerData.Value) {
+                    writer.Write(entry.Item1);
+                    writer.Write(entry.Item2);
+                }
+
+                // TODO: send this data only to its player
+                using (Message response = Message.Create(Tags.SEND_PLAYER_DATA, writer)) {
+                    foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
+                        // if the units belong to the current player
+                        if (player.Value == playerData.Key) {
+                            player.Key.SendMessage(response, SendMode.Reliable);
+                        }
+                    }
+                }
+            }
+        }
+
+        // notice the clients that the game can start
+        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+            using (Message response = Message.Create(Tags.DONE_INIT_WORLD, writer)) {
+                foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
+                    player.Key.SendMessage(response, SendMode.Reliable);
+                }
+            }
+        }
+
+        // notice the players about other players civilizations
+        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+            foreach (KeyValuePair<IClient, byte> playerPair in this.playersIClientMapping) {
+                Player player = RoomMaster.players[playerPair.Key];
+                writer.Write(playerPair.Value);
+                writer.Write(player.civilization);
+            }
+
+            using (Message response = Message.Create(Tags.GET_PLAYER_CIVILIZATION, writer)) {
+                foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
+                    player.Key.SendMessage(response, SendMode.Reliable);
+                }
+            }
+        }
     }
 }
