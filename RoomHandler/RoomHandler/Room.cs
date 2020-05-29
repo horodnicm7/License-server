@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using DarkRift;
 using DarkRift.Server;
@@ -47,7 +48,6 @@ public class Room {
     }
 
     public void sendDataToPlayersCallback() {
-        Console.WriteLine("Send data to players");
         foreach(KeyValuePair<IClient, LinkedList<PlayerMessage>> playerQueue in this.udpMessageQueue) {
             DarkRiftWriter udpWriter = DarkRiftWriter.Create();
             byte sent = 0;
@@ -204,18 +204,13 @@ public class Room {
         if (sendSpawnToOthers) {
             HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, newUnit);
 
-            using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-                writer.Write(gridIndex);
-                writer.Write(gridValue);
-                writer.Write(rotationWhole);
-                writer.Write(rotationFractional);
-
-                using (Message response = Message.Create(Tags.PLAYER_SPAWN_UNIT, writer)) {
-                    foreach (byte playerId in seenBy) {
-                        IClient otherPlayer = this.playersByteMapping[playerId];
-                        otherPlayer.SendMessage(response, SendMode.Reliable);
-                    }
+            foreach(byte playerId in seenBy) {
+                IClient enemyClient = this.playersByteMapping[playerId];
+                if (!this.tcpMessageQueue.ContainsKey(enemyClient)) {
+                    this.tcpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
                 }
+
+                this.tcpMessageQueue[enemyClient].AddLast(new SpawnMesage(gridIndex, gridValue, rotationWhole, rotationFractional));
             }
         }
     }
@@ -330,7 +325,6 @@ public class Room {
         float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
 
         Console.WriteLine("Unit " + unitId + " move: " + wholeX + "," + fractionalX + " " + wholeZ + "," + fractionalZ + "    " + x + " " + z);
-
         Player player = RoomMaster.players[client];
         Unit unit = player.army[unitId];
         unit.position.x = x;
@@ -339,18 +333,17 @@ public class Room {
 
         HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit);
 
-        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-            
+        int gridValue = this.map.buildCell(this.playersIClientMapping[client], unitId, unit.type);
 
-            using (Message response = Message.Create(Tags.PLAYER_MOVE, writer)) {
-                foreach (byte playerId in seenBy) {
-                    IClient otherPlayer = this.playersByteMapping[playerId];
-                    otherPlayer.SendMessage(response, SendMode.Unreliable);
-                }
+        foreach(byte playerId in seenBy) {
+            IClient enemyClient = this.playersByteMapping[playerId];
+
+            if (!this.udpMessageQueue.ContainsKey(enemyClient)) {
+                this.udpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
             }
+
+            this.udpMessageQueue[enemyClient].AddLast(new MoveMessage(gridValue, wholeX, fractionalX, wholeZ, fractionalZ));
         }
-
-
     }
 
     private void handlePlayerUnitRotate(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -532,21 +525,31 @@ public class Room {
                 byte length = (byte)(playerData.Value.Count);
                 writer.Write(length);
 
+                Player currentPlayer = RoomMaster.players[this.playersByteMapping[playerData.Key]];
+
                 // TODO: this might be optimized to quit sending the player ID. Basically, entry.item2 will be 3 bytes,
                 // because we'll skip the first one (player ID)
                 foreach (Tuple<int, int> entry in playerData.Value) {
                     writer.Write(entry.Item1);
                     writer.Write(entry.Item2);
+
+                    // add this unit to its player data structure
+                    byte entityType = this.map.getEntityType(entry.Item2);
+                    ushort entityId = this.map.getCounterValue(entry.Item2);
+
+                    Tuple<float, float, float> rawPos = this.map.getCellPosition(entry.Item1);
+                    Unit newUnit = new Unit(new Vector3(rawPos), 0, 0, entityType, entry.Item1);
+
+                    if (Unit.isBuilding(entityType)) {
+                        currentPlayer.buildings.Add(entityId, newUnit);
+                    } else {
+                        currentPlayer.army.Add(entityId, newUnit);
+                    }
                 }
 
-                // TODO: send this data only to its player
                 using (Message response = Message.Create(Tags.SEND_PLAYER_DATA, writer)) {
-                    foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
-                        // if the units belong to the current player
-                        if (player.Value == playerData.Key) {
-                            player.Key.SendMessage(response, SendMode.Reliable);
-                        }
-                    }
+                    IClient player = this.playersByteMapping[playerData.Key];
+                    player.SendMessage(response, SendMode.Reliable);
                 }
             }
         }

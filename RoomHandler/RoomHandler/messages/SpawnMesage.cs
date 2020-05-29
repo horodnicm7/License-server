@@ -3,10 +3,14 @@
 class SpawnMesage : PlayerMessage {
     private int gridIndex;
     private int gridValue;
+    private short wholeRotationY;
+    private short fractionalRotationY;
 
-    public SpawnMesage(int gridIndex, int gridValue) {
+    public SpawnMesage(int gridIndex, int gridValue, short wholeRotationY, short fractionalRotationY) {
         this.gridIndex = gridIndex;
         this.gridValue = gridValue;
+        this.wholeRotationY = wholeRotationY;
+        this.fractionalRotationY = fractionalRotationY;
     }
 
     public override void serialize(ref DarkRiftWriter writer) {

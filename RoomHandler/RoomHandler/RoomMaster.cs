@@ -31,6 +31,11 @@ public class RoomMaster : Plugin {
         this.startRoomsTimer();
     }
 
+    ~RoomMaster() {
+        this.roomsTimer.Stop();
+        this.roomsTimer.Dispose();
+    }
+
     private void startRoomsTimer() {
         this.roomsTimer = new System.Timers.Timer(100);
         this.roomsTimer.Elapsed += onRoomsTimerEvent;
