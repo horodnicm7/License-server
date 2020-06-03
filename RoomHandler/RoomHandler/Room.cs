@@ -21,7 +21,7 @@ public class Room {
     private const byte goldChunkSize = 10;
     private const byte stoneChunkSize = 5;
 
-    private byte maximumFieldOfView = 10;
+    private byte maximumFieldOfView = 0;
 
     private Dictionary<IClient, LinkedList<PlayerMessage>> tcpMessageQueue;
     private Dictionary<IClient, LinkedList<PlayerMessage>> udpMessageQueue;
@@ -62,6 +62,7 @@ public class Room {
 
             // if there are messages in this queue to send
             if (sent > 0) {
+                Console.WriteLine("Send to " + this.playersIClientMapping[playerQueue.Key] + " " + sent + " UDP messages");
                 using (Message response = Message.Create(Tags.MIXED_MESSAGE, udpWriter)) {
                     playerQueue.Key.SendMessage(response, SendMode.Unreliable);
                 }
@@ -83,6 +84,7 @@ public class Room {
 
             // if there are messages in this queue to send
             if (sent > 0) {
+                Console.WriteLine("Send to " + this.playersIClientMapping[playerQueue.Key] + " " + sent + " TCP messages");
                 using (Message response = Message.Create(Tags.MIXED_MESSAGE, tcpWriter)) {
                     playerQueue.Key.SendMessage(response, SendMode.Reliable);
                 }
@@ -171,12 +173,18 @@ public class Room {
     }
 
     private void handlePlayerUnitSpawn(ref IClient client, ref DarkRiftReader legacyReader) {
-        int gridIndex = legacyReader.ReadInt32();
+        short wholeX = legacyReader.ReadInt16();
+        short fractionalX = legacyReader.ReadInt16();
+        short wholeZ = legacyReader.ReadInt16();
+        short fractionalZ = legacyReader.ReadInt16();
         int gridValue = legacyReader.ReadInt32();
         short rotationWhole = legacyReader.ReadInt16();
         short rotationFractional = legacyReader.ReadInt16();
 
-        Console.WriteLine("Spawn position received at: " + gridIndex + " " + gridValue);
+        float x = FloatIntConverter.convertInt(wholeX, fractionalX);
+        float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
+
+        int gridIndex = this.map.getGridIndex(x, 0, z);
 
         ushort counterValue = this.map.getCounterValue(gridValue);
         Player player = RoomMaster.players[client];
@@ -185,21 +193,20 @@ public class Room {
         bool sendSpawnToOthers = false;
         Unit newUnit = null;
 
+        Vector3 positionVector = new Vector3(x, 0, z);
         if (Unit.isBuilding(type)) {
             if (!player.buildings.ContainsKey(counterValue)) {
-                Tuple<float, float, float> position = this.map.getCellPosition(gridIndex);
-                Vector3 positionVector = new Vector3(position.Item1, position.Item2, position.Item3);
                 newUnit = new Unit(positionVector, rotationWhole, rotationFractional, type, gridIndex);
                 player.buildings.Add(counterValue, newUnit);
                 sendSpawnToOthers = true;
             }
         } else if (!player.army.ContainsKey(counterValue)) {
-            Tuple<float, float, float> position = this.map.getCellPosition(gridIndex);
-            Vector3 positionVector = new Vector3(position.Item1, position.Item2, position.Item3);
             newUnit = new Unit(positionVector, rotationWhole, rotationFractional, type, gridIndex);
             player.army.Add(counterValue, newUnit);
             sendSpawnToOthers = true;
         }
+
+        newUnit.activity = Activities.NONE;
 
         if (sendSpawnToOthers) {
             HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, newUnit);
@@ -210,9 +217,150 @@ public class Room {
                     this.tcpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
                 }
 
-                this.tcpMessageQueue[enemyClient].AddLast(new SpawnMesage(gridIndex, gridValue, rotationWhole, rotationFractional));
+                this.tcpMessageQueue[enemyClient].AddLast(new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ,
+                    gridValue, rotationWhole, rotationFractional, Activities.NONE));
             }
         }
+    }
+
+    private void handlePlayerUnitMove(ref IClient client, ref DarkRiftReader legacyReader) {
+        ushort unitId = (ushort)legacyReader.ReadInt16();
+        short wholeX = legacyReader.ReadInt16();
+        short fractionalX = legacyReader.ReadInt16();
+        short wholeZ = legacyReader.ReadInt16();
+        short fractionalZ = legacyReader.ReadInt16();
+        short rotationWhole = legacyReader.ReadInt16();
+        short rotationFractional = legacyReader.ReadInt16();
+
+        float x = FloatIntConverter.convertInt(wholeX, fractionalX);
+        float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
+
+        //Console.WriteLine("Unit " + unitId + " move: " + wholeX + "," + fractionalX + " " + wholeZ + "," + fractionalZ + "    " + x + " " + z);
+        Player player = RoomMaster.players[client];
+        Unit unit = player.army[unitId];
+
+        byte unitPlayer = this.playersIClientMapping[client];
+
+        int oldIndex = unit.gridIndex;
+
+        this.map.cleanMarkedIndexSquare(unit.gridIndex, SizeMapping.map(unit.type), unitPlayer);
+        unit.position.x = x;
+        unit.position.z = z;
+        unit.gridIndex = this.map.getGridIndex(x, unit.position.y, z);
+        unit.rotationWhole = rotationWhole;
+        unit.rotationFractional = rotationFractional;
+        unit.activity = Activities.MOVING;
+        this.map.markCell(unit.gridIndex, this.playersIClientMapping[client], unit.type, unitId);
+
+        if (oldIndex != unit.gridIndex) {
+            Console.WriteLine(unit.gridIndex);
+        }
+
+        HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit);
+        //Console.WriteLine("Seen by: " + seenBy.Count);
+        int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
+        //Console.Write("Foll enemies see: ");
+        foreach (byte playerId in seenBy) {
+            IClient enemyClient = this.playersByteMapping[playerId];
+
+            //Console.Write(playerId + ", ");
+
+            if (!this.udpMessageQueue.ContainsKey(enemyClient)) {
+                this.udpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
+            }
+
+            this.udpMessageQueue[enemyClient].AddLast(new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ,
+                    gridValue, rotationWhole, rotationFractional, Activities.MOVING));
+        }
+        //Console.WriteLine();
+
+        //Console.Write("What this unit sees: ");
+        Dictionary<byte, HashSet<ushort>> whatThisSees = this.whatThisUnitSees(client, unit);
+        foreach(KeyValuePair<byte, HashSet<ushort>> seenEnemies in whatThisSees) {
+            Player enemyPlayer = RoomMaster.players[this.playersByteMapping[seenEnemies.Key]];
+            foreach(ushort enemyId in seenEnemies.Value) {
+                Unit enemyUnit = null;
+                if (enemyPlayer.army.ContainsKey(enemyId)) {
+                    enemyUnit = enemyPlayer.army[enemyId];
+                } else {
+                    enemyUnit = enemyPlayer.buildings[enemyId];
+                }
+
+                int enemyGridValue = this.map.buildCell(seenEnemies.Key, enemyId, enemyUnit.type);
+                Tuple<short, short> posXParts = FloatIntConverter.convertFloat(enemyUnit.position.x);
+                Tuple<short, short> posZParts = FloatIntConverter.convertFloat(enemyUnit.position.z);
+
+                if (!this.udpMessageQueue.ContainsKey(client)) {
+                    this.udpMessageQueue.Add(client, new LinkedList<PlayerMessage>());
+                }
+
+                //Console.Write(enemyId + ", ");
+
+                this.udpMessageQueue[client].AddLast(new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
+                    enemyGridValue, enemyUnit.rotationWhole, enemyUnit.rotationFractional, enemyUnit.activity));
+            }
+        }
+        //Console.WriteLine();
+        //Console.WriteLine();
+    }
+
+    private Dictionary<byte, HashSet<ushort>> whatThisUnitSees(IClient unitOwner, Unit currentUnit) {
+        Dictionary<byte, HashSet<ushort>> result = new Dictionary<byte, HashSet<ushort>>();
+        byte unitPlayer = this.playersIClientMapping[unitOwner];
+        Player currentPlayer = RoomMaster.players[unitOwner];
+
+        Tuple<int, int> currentUnitCoords = this.map.getCoordinates(currentUnit.gridIndex);
+        int halfFieldOfView = (int)(currentPlayer.playerStats.map(currentUnit.type).fieldOfView * this.map.cellLength);
+
+        // the line start in [0, this.map.gridSize)
+        int startLine = currentUnitCoords.Item1 - halfFieldOfView;
+        startLine = (startLine < 0) ? 0 : startLine;
+
+        // the line end in [0, this.map.gridSize)
+        int endLine = currentUnitCoords.Item1 + halfFieldOfView;
+        endLine = (endLine >= this.map.gridSize) ? this.map.gridSize - 1 : endLine;
+
+        // the column start in [0, this.map.gridSize)
+        int startCol = currentUnitCoords.Item2 - halfFieldOfView;
+        startCol = (startCol < 0) ? 0 : startCol;
+
+        // the column end in [0, this.map.gridSize)
+        int endCol = currentUnitCoords.Item2 + halfFieldOfView;
+        endCol = (endCol >= this.map.gridSize) ? this.map.gridSize - 1 : endCol;
+
+        // the starting column for the first and last lines
+        int startIndex = startLine * this.map.gridSize + startCol;
+        int endIndex = endLine * this.map.gridSize + startCol;
+
+        HashSet<ushort> visited = new HashSet<ushort>();
+
+        for (int line = startIndex; line <= endIndex; line += this.map.gridSize) {
+            for (int index = line; index <= line + endCol; index++) {
+                int cell = this.map.getCell(index);
+
+                if (!this.map.isFreeCell(cell)) {
+                    byte enemyPlayerId = this.map.getPlayer(cell);
+                    // if it's and environment entity or this cell contains the current unit
+                    if (enemyPlayerId == 0 || unitPlayer == enemyPlayerId) {
+                        continue;
+                    }
+
+                    ushort enemyUnitId = this.map.getCounterValue(cell);
+                    if (visited.Contains(enemyUnitId)) {
+                        continue;
+                    }
+
+                    if (!result.ContainsKey(enemyPlayerId)) {
+                        result.Add(enemyPlayerId, new HashSet<ushort>());
+                    }
+
+                    result[enemyPlayerId].Add(enemyUnitId);
+                    visited.Add(enemyUnitId);
+                }
+            }
+        }
+
+        return result;
     }
 
     /*
@@ -220,11 +368,11 @@ public class Room {
      *  every cell in this square to see if the current unit is visible to that one
      */
     private HashSet<byte> whoSeesThisUnitWithSquare(IClient unitOwner, Unit modifiedUnit) {
-        byte modifiedUnitPlayer = this.map.getPlayer(this.map.getPlayer(this.map.getCell(modifiedUnit.gridIndex)));
+        byte modifiedUnitPlayer = this.map.getPlayer(this.map.getCell(modifiedUnit.gridIndex));
         HashSet<byte> seenBy = new HashSet<byte>();
 
         Tuple<int, int> indexCoords = this.map.getCoordinates(modifiedUnit.gridIndex);
-        int halfFieldOfView = this.maximumFieldOfView / 2;
+        int halfFieldOfView = this.maximumFieldOfView;
 
         // the line start in [0, this.map.gridSize)
         int startLine = indexCoords.Item1 - halfFieldOfView;
@@ -280,6 +428,8 @@ public class Room {
                             seenBy.Add(playerId);
                         }
                     }
+
+                    visited.Add(unitId);
                 }
             }
         }
@@ -314,45 +464,58 @@ public class Room {
         return seenBy;
     }
 
-    private void handlePlayerUnitMove(ref IClient client, ref DarkRiftReader legacyReader) {
+    private void handlePlayerUnitRotate(ref IClient client, ref DarkRiftReader legacyReader) {
         ushort unitId = (ushort)legacyReader.ReadInt16();
-        short wholeX = legacyReader.ReadInt16();
-        short fractionalX = legacyReader.ReadInt16();
-        short wholeZ = legacyReader.ReadInt16();
-        short fractionalZ = legacyReader.ReadInt16();
+        short wholeY = legacyReader.ReadInt16();
+        short fractionalY = legacyReader.ReadInt16();
 
-        float x = FloatIntConverter.convertInt(wholeX, fractionalX);
-        float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
-
-        Console.WriteLine("Unit " + unitId + " move: " + wholeX + "," + fractionalX + " " + wholeZ + "," + fractionalZ + "    " + x + " " + z);
+        byte unitPlayer = this.playersIClientMapping[client];
+        Unit unit = null;
         Player player = RoomMaster.players[client];
-        Unit unit = player.army[unitId];
-        unit.position.x = x;
-        unit.position.z = z;
-        unit.gridIndex = this.map.getGridIndex(x, unit.position.y, z);
+        if (player.army.ContainsKey(unitId)) {
+            unit = player.army[unitId];
+        } else {
+            unit = player.buildings[unitId];
+        }
+
+        unit.rotationWhole = wholeY;
+        unit.rotationFractional = fractionalY;
 
         HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit);
-
-        int gridValue = this.map.buildCell(this.playersIClientMapping[client], unitId, unit.type);
-
-        foreach(byte playerId in seenBy) {
+        int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
+        foreach (byte playerId in seenBy) {
             IClient enemyClient = this.playersByteMapping[playerId];
 
             if (!this.udpMessageQueue.ContainsKey(enemyClient)) {
                 this.udpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
             }
 
-            this.udpMessageQueue[enemyClient].AddLast(new MoveMessage(gridValue, wholeX, fractionalX, wholeZ, fractionalZ));
+            this.udpMessageQueue[enemyClient].AddLast(new RotateMessage(gridValue, wholeY, fractionalY, unit.activity));
         }
-    }
 
-    private void handlePlayerUnitRotate(ref IClient client, ref DarkRiftReader legacyReader) {
-        short unitIndex = legacyReader.ReadInt16();
-        short wholeY = legacyReader.ReadInt16();
-        short fractionalY = legacyReader.ReadInt16();
+        Dictionary<byte, HashSet<ushort>> whatThisSees = this.whatThisUnitSees(client, unit);
+        foreach (KeyValuePair<byte, HashSet<ushort>> seenEnemies in whatThisSees) {
+            Player enemyPlayer = RoomMaster.players[this.playersByteMapping[seenEnemies.Key]];
+            foreach (ushort enemyId in seenEnemies.Value) {
+                Unit enemyUnit = null;
+                if (enemyPlayer.army.ContainsKey(enemyId)) {
+                    enemyUnit = enemyPlayer.army[enemyId];
+                } else {
+                    enemyUnit = enemyPlayer.buildings[enemyId];
+                }
 
-        float rotY = FloatIntConverter.convertInt(wholeY, fractionalY);
-        Console.WriteLine("Rotation: " + unitIndex + " with: " + rotY);
+                int enemyGridValue = this.map.buildCell(seenEnemies.Key, enemyId, enemyUnit.type);
+                Tuple<short, short> posXParts = FloatIntConverter.convertFloat(enemyUnit.position.x);
+                Tuple<short, short> posZParts = FloatIntConverter.convertFloat(enemyUnit.position.z);
+
+                if (!this.udpMessageQueue.ContainsKey(client)) {
+                    this.udpMessageQueue.Add(client, new LinkedList<PlayerMessage>());
+                }
+
+                this.udpMessageQueue[client].AddLast(new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
+                    enemyGridValue, enemyUnit.rotationWhole, enemyUnit.rotationFractional, enemyUnit.activity));
+            }
+        }
     }
 
     private void handlePlayerUnitAttack(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -539,6 +702,11 @@ public class Room {
 
                     Tuple<float, float, float> rawPos = this.map.getCellPosition(entry.Item1);
                     Unit newUnit = new Unit(new Vector3(rawPos), 0, 0, entityType, entry.Item1);
+                    newUnit.activity = Activities.NONE;
+
+                    // compute the maximum field of view for every unit
+                    byte thisUnitsFov = RoomMaster.players[this.playersByteMapping[playerData.Key]].playerStats.map(entityType).fieldOfView;
+                    this.maximumFieldOfView = Math.Max(thisUnitsFov, this.maximumFieldOfView);
 
                     if (Unit.isBuilding(entityType)) {
                         currentPlayer.buildings.Add(entityId, newUnit);
@@ -553,6 +721,8 @@ public class Room {
                 }
             }
         }
+
+        this.maximumFieldOfView = (byte)(this.maximumFieldOfView * this.map.cellLength);
 
         // notice the clients that the game can start
         using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
@@ -569,10 +739,12 @@ public class Room {
                 Player player = RoomMaster.players[playerPair.Key];
                 writer.Write(playerPair.Value);
                 writer.Write(player.civilization);
+                Console.WriteLine("Civilization: " + playerPair.Value + " " + player.civilization);
             }
 
             using (Message response = Message.Create(Tags.GET_PLAYER_CIVILIZATION, writer)) {
                 foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
+                    Console.WriteLine("Send civ message to " + player.Key + " " + player.Value);
                     player.Key.SendMessage(response, SendMode.Reliable);
                 }
             }

@@ -5,7 +5,7 @@
 
     public float range;
     public byte upgradedRange;
-    public float fieldOfView;
+    public byte fieldOfView;
 
     public byte swordArmor;
     public byte arrowArmor;
@@ -14,7 +14,7 @@
 
     public byte level;
 
-    public Stats(short hp, short attack, short upgradedAttack, float range, float fieldOfView, byte swordArmor, byte arrowArmor,
+    public Stats(short hp, short attack, short upgradedAttack, float range, byte fieldOfView, byte swordArmor, byte arrowArmor,
         byte upgradedSwordArmor, byte upgradedArrowArmor, byte level) {
         this.hp = hp;
         this.attack = attack;

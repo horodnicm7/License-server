@@ -19,5 +19,6 @@ public class Player {
 
         this.army = new Dictionary<ushort, Unit>();
         this.buildings = new Dictionary<ushort, Unit>();
+        this.playerStats = new PlayerStats();
     }
 }

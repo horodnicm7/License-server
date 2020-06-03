@@ -32,7 +32,8 @@ public class TerrainGenerator {
         }
     }
 
-    public void markNewEntity(int gridPosition, Size size, byte entityType, bool fromCenter = false, int distH = 0, int distV = 0) {
+    public void markNewEntity(int gridPosition, Size size, byte entityType, bool fromCenter = false,
+        int distH = 0, int distV = 0, byte playerId = 0) {
         Tuple<int, int> gridPos = this.worldMap.getCoordinates(gridPosition);
 
         if (fromCenter) {
@@ -44,7 +45,7 @@ public class TerrainGenerator {
                 int index = this.worldMap.indexFromCoordinates(gridPos.Item1 + i, gridPos.Item2 + j);
 
                 if (this.worldMap.isFreeIndexCell(index)) {
-                    this.worldMap.markCell(index, 0, entityType, this.counter);
+                    this.worldMap.markCell(index, playerId, entityType, this.counter);
                 } else {
                     Console.WriteLine("Positioned (" + this.worldMap.getCell(index) + " " + this.worldMap.getCounterValue(this.worldMap.getCell(index)) + ")");
                 }
@@ -324,7 +325,7 @@ public class TerrainGenerator {
             }*/
 
             if (this.worldMap.isFreeIndexSquare(gridIndex, entitySize)) {
-                this.markNewEntity(gridIndex, entitySize, type);
+                this.markNewEntity(gridIndex, entitySize, type, playerId: playerId);
                 break;
             }
         }
@@ -413,7 +414,8 @@ public class TerrainGenerator {
         int[] idxs = new int[2] { 20480, 20680};
         int h = 0;
 
-        for (byte playerId = 1, i = 0; i < noPlayers; playerId *= 2, i++) {
+        int testIndex = 400;
+        for (byte playerId = 1, i = 0; i < noPlayers; playerId *= 2, i++, testIndex += 20) {
             List<Tuple<int, int>> playerData = new List<Tuple<int, int>>();
 
             // try to find a suitable area to place the current player's units, with a certain degree of liberty
@@ -434,7 +436,16 @@ public class TerrainGenerator {
             int squareMaxCol = centerCol + (squareMaxLine - centerLine);
             Rectangle playerSquare = new Rectangle(squareMinLine, squareMinCol, squareMaxLine, squareMaxCol);
 
-            if (hasBarracks) {
+            // TODO: for test only
+            //int gridIndex = this.placeEntity(EntityType.SWORDSMAN, playerId, playerSquare);
+            Size soldierSize = SizeMapping.map(EntityType.SWORDSMAN);
+            this.markNewEntity(testIndex, soldierSize, EntityType.SWORDSMAN, playerId: playerId);
+
+            int value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.SWORDSMAN);
+            Console.WriteLine(testIndex + " is ocuppied: " + this.worldMap.isFreeIndexCell(testIndex) + " " + this.worldMap.getCell(testIndex));
+            playerData.Add(new Tuple<int, int>(testIndex, value));
+
+            /*if (hasBarracks) {
                 int gridIndex = this.placeEntity(EntityType.BARRACKS, playerId, playerSquare);
 
                 int value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.BARRACKS);
@@ -475,7 +486,7 @@ public class TerrainGenerator {
 
                 int value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.VILLAGER);
                 playerData.Add(new Tuple<int, int>(gridIndex, value));
-            }
+            }*/
 
             result.Add(playerId, playerData);
         }

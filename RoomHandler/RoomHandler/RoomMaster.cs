@@ -157,12 +157,15 @@ public class RoomMaster : Plugin {
                         break;
                     case Tags.START_GAME:
                         string roomUuid = reader.ReadString();
+                        Room currentRoom = this.rooms[roomUuid];
 
                         // TODO: check if player is room leader and the room is full
-                        if (this.rooms[roomUuid].leader == client) {
+                        if (currentRoom.leader == client) {
                             // set the message received handler to the room's one
-                            client.MessageReceived -= this.MessageReceived;
-                            client.MessageReceived += this.rooms[roomUuid].MessageReceived;
+                            foreach (KeyValuePair<IClient, byte> roomPlayer in currentRoom.playersIClientMapping) {
+                                roomPlayer.Key.MessageReceived -= this.MessageReceived;
+                                roomPlayer.Key.MessageReceived += this.rooms[roomUuid].MessageReceived;
+                            }
 
                             using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
                                 using (Message response = Message.Create(Tags.CAN_START_GAME, writer)) {

@@ -8,6 +8,7 @@ public class Unit {
     public short rotationFractional;
     public int gridIndex;
     public byte type;
+    public byte activity;
 
     public Unit(Vector3 position, short rotationWhole, short rotationFractional, byte type, int gridIndex) {
         this.position = position;
@@ -16,6 +17,7 @@ public class Unit {
         this.type = type;
 
         this.gridIndex = gridIndex;
+        this.activity = Activities.NONE;
     }
 
     public static bool isBuilding(byte unitType) {

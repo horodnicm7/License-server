@@ -1,4 +1,4 @@
-﻿using DarkRift;
+﻿/*using DarkRift;
 
 class MoveMessage : PlayerMessage {
     private int gridValue;
@@ -23,4 +23,4 @@ class MoveMessage : PlayerMessage {
         writer.Write(this.wholeZ);
         writer.Write(this.fractionalZ);
     }
-}
+}*/
