@@ -330,7 +330,7 @@ public class Room {
         unit.position.z = z;
         unit.activity = Activities.NONE;
 
-        PlayerMessage customMessage = new StopMessage(wholeX, fractionalX, wholeZ, fractionalZ, unitId);
+        PlayerMessage customMessage = new StopMessage(wholeX, fractionalX, wholeZ, fractionalZ, unitId, playerId);
         this.notifyOtherPlayersOnUnitEvent(ref client, unit, playerId, unitId, ref customMessage);
     }
 

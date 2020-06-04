@@ -1,18 +1,18 @@
 ﻿using DarkRift;
 
 class StopMessage : PlayerMessage {
-    private ushort unitId;
     private short wholeX;
     private short fractionalX;
     private short wholeZ;
     private short fractionalZ;
+    private int gridValue;
 
-    public StopMessage(short wholeX, short fractionalX, short wholeZ, short fractionalZ, ushort unitId) {
-        this.unitId = unitId;
+    public StopMessage(short wholeX, short fractionalX, short wholeZ, short fractionalZ, int gridValue) {
         this.wholeX = wholeX;
         this.fractionalX = fractionalX;
         this.wholeZ = wholeZ;
         this.fractionalZ = fractionalZ;
+        this.gridValue = gridValue;
     }
 
     public override void serialize(ref DarkRiftWriter writer) {
@@ -21,7 +21,7 @@ class StopMessage : PlayerMessage {
         writer.Write(this.fractionalX);
         writer.Write(this.wholeZ);
         writer.Write(this.fractionalZ);
-        writer.Write(this.unitId);
+        writer.Write(this.gridValue);
     }
 }
 
