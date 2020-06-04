@@ -168,6 +168,12 @@ public class Room {
                 case Tags.PLAYER_ROTATE:
                     this.handlePlayerUnitRotate(ref client, ref legacyReader);
                     break;
+                case Tags.PLAYER_BUILD:
+                    this.handlePlayerBuild(ref client, ref legacyReader);
+                    break;
+                case Tags.PLAYER_TECHNOLOGY_UPGRADE:
+                    this.handlePlayerTechnologyUpgrade(ref client, ref legacyReader);
+                    break;
             }
         }
     }
@@ -256,212 +262,11 @@ public class Room {
             Console.WriteLine(unit.gridIndex);
         }
 
-        HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit);
-        //Console.WriteLine("Seen by: " + seenBy.Count);
         int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
-        //Console.Write("Foll enemies see: ");
-        foreach (byte playerId in seenBy) {
-            IClient enemyClient = this.playersByteMapping[playerId];
+        PlayerMessage customMessage = new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ,
+                    gridValue, rotationWhole, rotationFractional, Activities.MOVING);
 
-            //Console.Write(playerId + ", ");
-
-            if (!this.udpMessageQueue.ContainsKey(enemyClient)) {
-                this.udpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
-            }
-
-            this.udpMessageQueue[enemyClient].AddLast(new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ,
-                    gridValue, rotationWhole, rotationFractional, Activities.MOVING));
-        }
-        //Console.WriteLine();
-
-        //Console.Write("What this unit sees: ");
-        Dictionary<byte, HashSet<ushort>> whatThisSees = this.whatThisUnitSees(client, unit);
-        foreach(KeyValuePair<byte, HashSet<ushort>> seenEnemies in whatThisSees) {
-            Player enemyPlayer = RoomMaster.players[this.playersByteMapping[seenEnemies.Key]];
-            foreach(ushort enemyId in seenEnemies.Value) {
-                Unit enemyUnit = null;
-                if (enemyPlayer.army.ContainsKey(enemyId)) {
-                    enemyUnit = enemyPlayer.army[enemyId];
-                } else {
-                    enemyUnit = enemyPlayer.buildings[enemyId];
-                }
-
-                int enemyGridValue = this.map.buildCell(seenEnemies.Key, enemyId, enemyUnit.type);
-                Tuple<short, short> posXParts = FloatIntConverter.convertFloat(enemyUnit.position.x);
-                Tuple<short, short> posZParts = FloatIntConverter.convertFloat(enemyUnit.position.z);
-
-                if (!this.udpMessageQueue.ContainsKey(client)) {
-                    this.udpMessageQueue.Add(client, new LinkedList<PlayerMessage>());
-                }
-
-                //Console.Write(enemyId + ", ");
-
-                this.udpMessageQueue[client].AddLast(new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
-                    enemyGridValue, enemyUnit.rotationWhole, enemyUnit.rotationFractional, enemyUnit.activity));
-            }
-        }
-        //Console.WriteLine();
-        //Console.WriteLine();
-    }
-
-    private Dictionary<byte, HashSet<ushort>> whatThisUnitSees(IClient unitOwner, Unit currentUnit) {
-        Dictionary<byte, HashSet<ushort>> result = new Dictionary<byte, HashSet<ushort>>();
-        byte unitPlayer = this.playersIClientMapping[unitOwner];
-        Player currentPlayer = RoomMaster.players[unitOwner];
-
-        Tuple<int, int> currentUnitCoords = this.map.getCoordinates(currentUnit.gridIndex);
-        int halfFieldOfView = (int)(currentPlayer.playerStats.map(currentUnit.type).fieldOfView * this.map.cellLength);
-
-        // the line start in [0, this.map.gridSize)
-        int startLine = currentUnitCoords.Item1 - halfFieldOfView;
-        startLine = (startLine < 0) ? 0 : startLine;
-
-        // the line end in [0, this.map.gridSize)
-        int endLine = currentUnitCoords.Item1 + halfFieldOfView;
-        endLine = (endLine >= this.map.gridSize) ? this.map.gridSize - 1 : endLine;
-
-        // the column start in [0, this.map.gridSize)
-        int startCol = currentUnitCoords.Item2 - halfFieldOfView;
-        startCol = (startCol < 0) ? 0 : startCol;
-
-        // the column end in [0, this.map.gridSize)
-        int endCol = currentUnitCoords.Item2 + halfFieldOfView;
-        endCol = (endCol >= this.map.gridSize) ? this.map.gridSize - 1 : endCol;
-
-        // the starting column for the first and last lines
-        int startIndex = startLine * this.map.gridSize + startCol;
-        int endIndex = endLine * this.map.gridSize + startCol;
-
-        HashSet<ushort> visited = new HashSet<ushort>();
-
-        for (int line = startIndex; line <= endIndex; line += this.map.gridSize) {
-            for (int index = line; index <= line + endCol; index++) {
-                int cell = this.map.getCell(index);
-
-                if (!this.map.isFreeCell(cell)) {
-                    byte enemyPlayerId = this.map.getPlayer(cell);
-                    // if it's and environment entity or this cell contains the current unit
-                    if (enemyPlayerId == 0 || unitPlayer == enemyPlayerId) {
-                        continue;
-                    }
-
-                    ushort enemyUnitId = this.map.getCounterValue(cell);
-                    if (visited.Contains(enemyUnitId)) {
-                        continue;
-                    }
-
-                    if (!result.ContainsKey(enemyPlayerId)) {
-                        result.Add(enemyPlayerId, new HashSet<ushort>());
-                    }
-
-                    result[enemyPlayerId].Add(enemyUnitId);
-                    visited.Add(enemyUnitId);
-                }
-            }
-        }
-
-        return result;
-    }
-
-    /*
-     *  This method uses a square with a length equal to the maximum fieldOfView for any player. It checks
-     *  every cell in this square to see if the current unit is visible to that one
-     */
-    private HashSet<byte> whoSeesThisUnitWithSquare(IClient unitOwner, Unit modifiedUnit) {
-        byte modifiedUnitPlayer = this.map.getPlayer(this.map.getCell(modifiedUnit.gridIndex));
-        HashSet<byte> seenBy = new HashSet<byte>();
-
-        Tuple<int, int> indexCoords = this.map.getCoordinates(modifiedUnit.gridIndex);
-        int halfFieldOfView = this.maximumFieldOfView;
-
-        // the line start in [0, this.map.gridSize)
-        int startLine = indexCoords.Item1 - halfFieldOfView;
-        startLine = (startLine < 0) ? 0 : startLine;
-
-        // the line end in [0, this.map.gridSize)
-        int endLine = indexCoords.Item1 + halfFieldOfView;
-        endLine = (endLine >= this.map.gridSize) ? this.map.gridSize - 1 : endLine;
-
-        // the column start in [0, this.map.gridSize)
-        int startCol = indexCoords.Item2 - halfFieldOfView;
-        startCol = (startCol < 0) ? 0 : startCol;
-
-        // the column end in [0, this.map.gridSize)
-        int endCol = indexCoords.Item2 + halfFieldOfView;
-        endCol = (endCol >= this.map.gridSize) ? this.map.gridSize - 1 : endCol;
-
-        // the starting column for the first and last lines
-        int startIndex = startLine * this.map.gridSize + startCol;
-        int endIndex = endLine * this.map.gridSize + startCol;
-
-        HashSet<ushort> visited = new HashSet<ushort>();
-
-        for (int line = startIndex; line <= endIndex; line += this.map.gridSize) {
-            for (int index = line; index <= line + endCol; index++) {
-                int cell = this.map.getCell(index);
-
-                if (!this.map.isFreeCell(cell)) {
-                    byte playerId = this.map.getPlayer(cell);
-                    // if it's and environment entity or there's already an enemy unit that sees this one or this unit 
-                    // has the same player ID as the modified one
-                    if (playerId == 0 || seenBy.Contains(playerId) || modifiedUnitPlayer == playerId) {
-                        continue;
-                    }
-
-                    ushort unitId = this.map.getCounterValue(cell);
-                    if (visited.Contains(unitId)) {
-                        continue;
-                    }
-
-                    byte unitType = this.map.getEntityType(cell);
-                    Player enemyPlayer = RoomMaster.players[this.playersByteMapping[playerId]];
-
-                    // TODO: treat buildings differently
-                    if (Unit.isBuilding(unitType)) {
-
-                    } else {
-                        Unit enemyUnit = enemyPlayer.army[unitId];
-                        // it's a moving unit and 0 centered locally
-                        float distance = Vector3.distance(enemyUnit.position, modifiedUnit.position);
-                        Stats enemyUnitStats = enemyPlayer.playerStats.map(unitType);
-                        if (distance <= enemyUnitStats.fieldOfView) {
-                            seenBy.Add(playerId);
-                        }
-                    }
-
-                    visited.Add(unitId);
-                }
-            }
-        }
-
-        return seenBy;
-    }
-
-    /*
-     * For every player, check if there's a unit who sees this one
-     */
-    private HashSet<IClient> whoSeesThisUnitGreedy(IClient unitOwner, Unit modifiedUnit) {
-        List<IClient> otherPlayers = this.getOtherPlayers(unitOwner);
-        HashSet<IClient> seenBy = new HashSet<IClient>();
-
-        foreach (IClient otherClient in otherPlayers) {
-            Player otherPlayer = RoomMaster.players[otherClient];
-
-            // we need only one enemy unit for each player to see the modified unit
-            foreach (KeyValuePair<ushort, Unit> unit in otherPlayer.army) {
-                float distance = Vector3.distance(modifiedUnit.position, unit.Value.position);
-                Stats unitStats = otherPlayer.playerStats.map(unit.Value.type);
-
-                if (distance <= unitStats.fieldOfView) {
-                    if (!seenBy.Contains(otherClient)) {
-                        seenBy.Add(otherClient);
-                        break;
-                    }
-                }
-            }
-        }
-
-        return seenBy;
+        this.notifyOtherPlayersOnUnitEvent(ref client, unit, unitPlayer, unitId, ref customMessage);
     }
 
     private void handlePlayerUnitRotate(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -481,41 +286,10 @@ public class Room {
         unit.rotationWhole = wholeY;
         unit.rotationFractional = fractionalY;
 
-        HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit);
         int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
-        foreach (byte playerId in seenBy) {
-            IClient enemyClient = this.playersByteMapping[playerId];
+        PlayerMessage customMessage = new RotateMessage(gridValue, wholeY, fractionalY, unit.activity);
 
-            if (!this.udpMessageQueue.ContainsKey(enemyClient)) {
-                this.udpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
-            }
-
-            this.udpMessageQueue[enemyClient].AddLast(new RotateMessage(gridValue, wholeY, fractionalY, unit.activity));
-        }
-
-        Dictionary<byte, HashSet<ushort>> whatThisSees = this.whatThisUnitSees(client, unit);
-        foreach (KeyValuePair<byte, HashSet<ushort>> seenEnemies in whatThisSees) {
-            Player enemyPlayer = RoomMaster.players[this.playersByteMapping[seenEnemies.Key]];
-            foreach (ushort enemyId in seenEnemies.Value) {
-                Unit enemyUnit = null;
-                if (enemyPlayer.army.ContainsKey(enemyId)) {
-                    enemyUnit = enemyPlayer.army[enemyId];
-                } else {
-                    enemyUnit = enemyPlayer.buildings[enemyId];
-                }
-
-                int enemyGridValue = this.map.buildCell(seenEnemies.Key, enemyId, enemyUnit.type);
-                Tuple<short, short> posXParts = FloatIntConverter.convertFloat(enemyUnit.position.x);
-                Tuple<short, short> posZParts = FloatIntConverter.convertFloat(enemyUnit.position.z);
-
-                if (!this.udpMessageQueue.ContainsKey(client)) {
-                    this.udpMessageQueue.Add(client, new LinkedList<PlayerMessage>());
-                }
-
-                this.udpMessageQueue[client].AddLast(new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
-                    enemyGridValue, enemyUnit.rotationWhole, enemyUnit.rotationFractional, enemyUnit.activity));
-            }
-        }
+        this.notifyOtherPlayersOnUnitEvent(ref client, unit, unitPlayer, unitId, ref customMessage);
     }
 
     private void handlePlayerUnitAttack(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -529,11 +303,58 @@ public class Room {
     }
 
     private void handlePlayerUnitStop(ref IClient client, ref DarkRiftReader legacyReader) {
+        short wholeX = legacyReader.ReadInt16();
+        short fractionalX = legacyReader.ReadInt16();
+        short wholeZ = legacyReader.ReadInt16();
+        short fractionalZ = legacyReader.ReadInt16();
+        ushort unitId = (ushort)legacyReader.ReadInt16();
 
+        byte playerId = this.playersIClientMapping[client];
+
+        float x = FloatIntConverter.convertInt(wholeX, fractionalX);
+        float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
+
+        int gridIndex = this.map.getGridIndex(x, 0, z);
+
+        Player player = RoomMaster.players[client];
+        Unit unit = null;
+
+        if (player.army.ContainsKey(unitId)) {
+            unit = player.army[unitId];
+        } else {
+            unit = player.buildings[unitId];
+        }
+
+        unit.gridIndex = gridIndex;
+        unit.position.x = x;
+        unit.position.z = z;
+        unit.activity = Activities.NONE;
+
+        PlayerMessage customMessage = new StopMessage(wholeX, fractionalX, wholeZ, fractionalZ, unitId);
+        this.notifyOtherPlayersOnUnitEvent(ref client, unit, playerId, unitId, ref customMessage);
     }
 
     private void handlePlayerBuild(ref IClient client, ref DarkRiftReader legacyReader) {
+        int gridIndex = legacyReader.ReadInt32();
+        int gridValue = legacyReader.ReadInt32();
+        ushort unitId = this.map.getCounterValue(gridValue);
+        byte buildingType = this.map.getEntityType(gridValue);
 
+        // create the new entity and add it to its player
+        Vector3 position = new Vector3(this.map.getCellPosition(gridIndex));
+        Unit newUnit = new Unit(position, 0, 0, buildingType, gridIndex);
+
+        Player player = RoomMaster.players[client];
+        player.buildings.Add(unitId, newUnit);
+
+        // mark this building on the grid
+        byte playerId = this.map.getPlayer(gridValue);
+        Size buildingSize = SizeMapping.map(buildingType);
+        this.map.markIndexSquare(gridIndex, buildingSize, buildingType, playerId, unitId);
+
+        // add this build message to clients queues
+        PlayerMessage customMessage = new BuildMessage(gridIndex, gridValue);
+        this.notifyOtherPlayersOnUnitEvent(ref client, newUnit, playerId, unitId, ref customMessage);
     }
 
     private void handlePlayerGatherResource(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -541,7 +362,25 @@ public class Room {
     }
 
     private void handlePlayerTechnologyUpgrade(ref IClient client, ref DarkRiftReader legacyReader) {
+        byte upgradeTag = legacyReader.ReadByte();
 
+        Player player = RoomMaster.players[client];
+        // ignore this message as it could be a client side bug that sends the same message
+        // multiple times
+        if (player.technologyUpgrades.Contains(upgradeTag)) {
+            return;
+        }
+
+        // register the upgrade on the server
+        TechnologyUpgrader.upgrade(ref player, upgradeTag);
+        player.technologyUpgrades.Add(upgradeTag);
+
+        byte playerId = this.playersIClientMapping[client];
+        PlayerMessage customMessage = new UpgradeMessage(playerId, upgradeTag);
+
+        foreach(IClient otherPlayer in this.getOtherPlayers(client)) {
+            this.tcpMessageQueue[otherPlayer].AddLast(customMessage);
+        }
     }
 
     private Tuple<ushort, float, int, int, int, int> getOptimalWorldParams() {
@@ -705,7 +544,7 @@ public class Room {
                     newUnit.activity = Activities.NONE;
 
                     // compute the maximum field of view for every unit
-                    byte thisUnitsFov = RoomMaster.players[this.playersByteMapping[playerData.Key]].playerStats.map(entityType).fieldOfView;
+                    byte thisUnitsFov = (byte)(RoomMaster.players[this.playersByteMapping[playerData.Key]].playerStats.map(entityType).fieldOfView * this.map.cellLength);
                     this.maximumFieldOfView = Math.Max(thisUnitsFov, this.maximumFieldOfView);
 
                     if (Unit.isBuilding(entityType)) {
@@ -749,5 +588,203 @@ public class Room {
                 }
             }
         }
+    }
+
+    private void notifyOtherPlayersOnUnitEvent(ref IClient client, Unit unit, byte unitPlayer, ushort unitId, ref PlayerMessage customMessage) {
+        HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit);
+
+        foreach (byte playerId in seenBy) {
+            IClient enemyClient = this.playersByteMapping[playerId];
+
+            if (!this.udpMessageQueue.ContainsKey(enemyClient)) {
+                this.udpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
+            }
+
+            this.udpMessageQueue[enemyClient].AddLast(customMessage);
+        }
+
+        Dictionary<byte, HashSet<ushort>> whatThisSees = this.whatThisUnitSees(client, unit);
+        foreach (KeyValuePair<byte, HashSet<ushort>> seenEnemies in whatThisSees) {
+            Player enemyPlayer = RoomMaster.players[this.playersByteMapping[seenEnemies.Key]];
+            foreach (ushort enemyId in seenEnemies.Value) {
+                Unit enemyUnit = null;
+                if (enemyPlayer.army.ContainsKey(enemyId)) {
+                    enemyUnit = enemyPlayer.army[enemyId];
+                } else {
+                    enemyUnit = enemyPlayer.buildings[enemyId];
+                }
+
+                int enemyGridValue = this.map.buildCell(seenEnemies.Key, enemyId, enemyUnit.type);
+                Tuple<short, short> posXParts = FloatIntConverter.convertFloat(enemyUnit.position.x);
+                Tuple<short, short> posZParts = FloatIntConverter.convertFloat(enemyUnit.position.z);
+
+                if (!this.udpMessageQueue.ContainsKey(client)) {
+                    this.udpMessageQueue.Add(client, new LinkedList<PlayerMessage>());
+                }
+
+                this.udpMessageQueue[client].AddLast(new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
+                    enemyGridValue, enemyUnit.rotationWhole, enemyUnit.rotationFractional, enemyUnit.activity));
+            }
+        }
+    }
+
+    private Dictionary<byte, HashSet<ushort>> whatThisUnitSees(IClient unitOwner, Unit currentUnit) {
+        Dictionary<byte, HashSet<ushort>> result = new Dictionary<byte, HashSet<ushort>>();
+        byte unitPlayer = this.playersIClientMapping[unitOwner];
+        Player currentPlayer = RoomMaster.players[unitOwner];
+
+        Tuple<int, int> currentUnitCoords = this.map.getCoordinates(currentUnit.gridIndex);
+        int halfFieldOfView = (int)(currentPlayer.playerStats.map(currentUnit.type).fieldOfView * this.map.cellLength);
+
+        // the line start in [0, this.map.gridSize)
+        int startLine = currentUnitCoords.Item1 - halfFieldOfView;
+        startLine = (startLine < 0) ? 0 : startLine;
+
+        // the line end in [0, this.map.gridSize)
+        int endLine = currentUnitCoords.Item1 + halfFieldOfView;
+        endLine = (endLine >= this.map.gridSize) ? this.map.gridSize - 1 : endLine;
+
+        // the column start in [0, this.map.gridSize)
+        int startCol = currentUnitCoords.Item2 - halfFieldOfView;
+        startCol = (startCol < 0) ? 0 : startCol;
+
+        // the column end in [0, this.map.gridSize)
+        int endCol = currentUnitCoords.Item2 + halfFieldOfView;
+        endCol = (endCol >= this.map.gridSize) ? this.map.gridSize - 1 : endCol;
+
+        // the starting column for the first and last lines
+        int startIndex = startLine * this.map.gridSize + startCol;
+        int endIndex = endLine * this.map.gridSize + startCol;
+
+        HashSet<ushort> visited = new HashSet<ushort>();
+
+        for (int line = startIndex; line <= endIndex; line += this.map.gridSize) {
+            for (int index = line; index <= line + endCol; index++) {
+                int cell = this.map.getCell(index);
+
+                if (!this.map.isFreeCell(cell)) {
+                    byte enemyPlayerId = this.map.getPlayer(cell);
+                    // if it's and environment entity or this cell contains the current unit
+                    if (enemyPlayerId == 0 || unitPlayer == enemyPlayerId) {
+                        continue;
+                    }
+
+                    ushort enemyUnitId = this.map.getCounterValue(cell);
+                    if (visited.Contains(enemyUnitId)) {
+                        continue;
+                    }
+
+                    if (!result.ContainsKey(enemyPlayerId)) {
+                        result.Add(enemyPlayerId, new HashSet<ushort>());
+                    }
+
+                    result[enemyPlayerId].Add(enemyUnitId);
+                    visited.Add(enemyUnitId);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /*
+     *  This method uses a square with a length equal to the maximum fieldOfView for any player. It checks
+     *  every cell in this square to see if the current unit is visible to that one
+     */
+    private HashSet<byte> whoSeesThisUnitWithSquare(IClient unitOwner, Unit modifiedUnit) {
+        byte modifiedUnitPlayer = this.map.getPlayer(this.map.getCell(modifiedUnit.gridIndex));
+        HashSet<byte> seenBy = new HashSet<byte>();
+
+        Tuple<int, int> indexCoords = this.map.getCoordinates(modifiedUnit.gridIndex);
+        int halfFieldOfView = this.maximumFieldOfView;
+
+        // the line start in [0, this.map.gridSize)
+        int startLine = indexCoords.Item1 - halfFieldOfView;
+        startLine = (startLine < 0) ? 0 : startLine;
+
+        // the line end in [0, this.map.gridSize)
+        int endLine = indexCoords.Item1 + halfFieldOfView;
+        endLine = (endLine >= this.map.gridSize) ? this.map.gridSize - 1 : endLine;
+
+        // the column start in [0, this.map.gridSize)
+        int startCol = indexCoords.Item2 - halfFieldOfView;
+        startCol = (startCol < 0) ? 0 : startCol;
+
+        // the column end in [0, this.map.gridSize)
+        int endCol = indexCoords.Item2 + halfFieldOfView;
+        endCol = (endCol >= this.map.gridSize) ? this.map.gridSize - 1 : endCol;
+
+        // the starting column for the first and last lines
+        int startIndex = startLine * this.map.gridSize + startCol;
+        int endIndex = endLine * this.map.gridSize + startCol;
+
+        HashSet<ushort> visited = new HashSet<ushort>();
+
+        for (int line = startIndex; line <= endIndex; line += this.map.gridSize) {
+            for (int index = line; index <= line + endCol; index++) {
+                int cell = this.map.getCell(index);
+
+                if (!this.map.isFreeCell(cell)) {
+                    byte playerId = this.map.getPlayer(cell);
+                    // if it's and environment entity or there's already an enemy unit that sees this one or this unit 
+                    // has the same player ID as the modified one
+                    if (playerId == 0 || seenBy.Contains(playerId) || modifiedUnitPlayer == playerId) {
+                        continue;
+                    }
+
+                    ushort unitId = this.map.getCounterValue(cell);
+                    if (visited.Contains(unitId)) {
+                        continue;
+                    }
+
+                    byte unitType = this.map.getEntityType(cell);
+                    Player enemyPlayer = RoomMaster.players[this.playersByteMapping[playerId]];
+
+                    // TODO: treat buildings differently
+                    if (Unit.isBuilding(unitType)) {
+
+                    } else {
+                        Unit enemyUnit = enemyPlayer.army[unitId];
+                        // it's a moving unit and 0 centered locally
+                        float distance = Vector3.distance(enemyUnit.position, modifiedUnit.position);
+                        Stats enemyUnitStats = enemyPlayer.playerStats.map(unitType);
+                        if (distance <= (enemyUnitStats.fieldOfView * this.map.cellLength)) {
+                            seenBy.Add(playerId);
+                        }
+                    }
+
+                    visited.Add(unitId);
+                }
+            }
+        }
+
+        return seenBy;
+    }
+
+    /*
+     * For every player, check if there's a unit who sees this one
+     */
+    private HashSet<IClient> whoSeesThisUnitGreedy(IClient unitOwner, Unit modifiedUnit) {
+        List<IClient> otherPlayers = this.getOtherPlayers(unitOwner);
+        HashSet<IClient> seenBy = new HashSet<IClient>();
+
+        foreach (IClient otherClient in otherPlayers) {
+            Player otherPlayer = RoomMaster.players[otherClient];
+
+            // we need only one enemy unit for each player to see the modified unit
+            foreach (KeyValuePair<ushort, Unit> unit in otherPlayer.army) {
+                float distance = Vector3.distance(modifiedUnit.position, unit.Value.position);
+                Stats unitStats = otherPlayer.playerStats.map(unit.Value.type);
+
+                if (distance <= unitStats.fieldOfView) {
+                    if (!seenBy.Contains(otherClient)) {
+                        seenBy.Add(otherClient);
+                        break;
+                    }
+                }
+            }
+        }
+
+        return seenBy;
     }
 }

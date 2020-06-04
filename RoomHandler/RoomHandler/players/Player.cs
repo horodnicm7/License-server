@@ -9,6 +9,7 @@ public class Player {
     public string name;
     public string roomUUID;
     public byte civilization;
+    public HashSet<byte> technologyUpgrades;
 
     // metadata
     private string ipAddress;
@@ -20,5 +21,6 @@ public class Player {
         this.army = new Dictionary<ushort, Unit>();
         this.buildings = new Dictionary<ushort, Unit>();
         this.playerStats = new PlayerStats();
+        this.technologyUpgrades = new HashSet<byte>();
     }
 }
