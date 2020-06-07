@@ -1,4 +1,5 @@
 ﻿using System;
+
 /*
  * CONVENTIONS:
  * 1. the map is centered in (0, 0, 0)
@@ -18,9 +19,8 @@ public class WorldMap {
     private float halfCellLength;
     private ushort halfWorldLength;
     private int halfGridSize;
-    public int gridSquareSize;
 
-    public WorldMap(ushort worldLength = 128, float cellLength = 0.5f) {
+    public WorldMap(ushort worldLength = 1024, float cellLength = 0.5f) {
         this.worldLength = worldLength;
         this.cellLength = cellLength;
 
@@ -29,7 +29,6 @@ public class WorldMap {
         this.halfCellLength = this.cellLength / 2;
         this.halfWorldLength = (ushort)(this.worldLength / 2);
         this.halfGridSize = this.gridSize / 2;
-        this.gridSquareSize = this.gridSize * this.gridSize;
     }
 
     public void buildGridFromTerrain() {
@@ -37,10 +36,14 @@ public class WorldMap {
     }
 
     public Tuple<float, float> getCellCenter(float x, float y, float z) {
-        int wholePartX = (int)x;
+        /*int wholePartX = (int)x;
         int wholePartZ = (int)z;
 
-        return new Tuple<float, float>(wholePartX + this.halfCellLength, wholePartZ + this.halfCellLength);
+        return new Tuple<float, float>(wholePartX + this.halfCellLength, wholePartZ + this.halfCellLength);*/
+        int index = this.getGridIndex(x, y, z);
+        Tuple<float, float, float> center = this.getCellPosition(index);
+
+        return new Tuple<float, float>(center.Item1, center.Item3);
     }
 
     public Tuple<float, float, float> getCellPosition(int index) {
@@ -57,11 +60,8 @@ public class WorldMap {
     }
 
     public int getGridIndex(float x, float y, float z) {
-        int wholePartX = (int)x;
-        int wholePartZ = (int)z;
-
-        int col = (int)(wholePartX / this.cellLength);
-        int line = (int)(wholePartZ / this.cellLength);
+        int col = (int)(x / this.cellLength);
+        int line = (int)(z / this.cellLength);
 
         return line * this.gridSize + col;
     }

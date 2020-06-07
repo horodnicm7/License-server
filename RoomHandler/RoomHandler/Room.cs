@@ -174,6 +174,9 @@ public class Room {
                 case Tags.PLAYER_TECHNOLOGY_UPGRADE:
                     this.handlePlayerTechnologyUpgrade(ref client, ref legacyReader);
                     break;
+                case Tags.PLAYER_STOP_UNIT:
+                    this.handlePlayerUnitStop(ref client, ref legacyReader);
+                    break;
             }
         }
     }
@@ -215,7 +218,7 @@ public class Room {
         newUnit.activity = Activities.NONE;
 
         if (sendSpawnToOthers) {
-            HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, newUnit);
+            HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, newUnit, this.map.getPlayer(gridValue));
 
             foreach(byte playerId in seenBy) {
                 IClient enemyClient = this.playersByteMapping[playerId];
@@ -241,7 +244,8 @@ public class Room {
         float x = FloatIntConverter.convertInt(wholeX, fractionalX);
         float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
 
-        //Console.WriteLine("Unit " + unitId + " move: " + wholeX + "," + fractionalX + " " + wholeZ + "," + fractionalZ + "    " + x + " " + z);
+        Console.WriteLine("Unit " + unitId + "moving: " + x + " " + z);
+
         Player player = RoomMaster.players[client];
         Unit unit = player.army[unitId];
 
@@ -286,8 +290,12 @@ public class Room {
         unit.rotationWhole = wholeY;
         unit.rotationFractional = fractionalY;
 
+        Tuple<short, short> posXParts = FloatIntConverter.convertFloat(unit.position.x);
+        Tuple<short, short> posZParts = FloatIntConverter.convertFloat(unit.position.z);
+
         int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
-        PlayerMessage customMessage = new RotateMessage(gridValue, wholeY, fractionalY, unit.activity);
+        PlayerMessage customMessage = new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
+                    gridValue, wholeY, fractionalY, unit.activity);
 
         this.notifyOtherPlayersOnUnitEvent(ref client, unit, unitPlayer, unitId, ref customMessage);
     }
@@ -330,7 +338,9 @@ public class Room {
         unit.position.z = z;
         unit.activity = Activities.NONE;
 
-        PlayerMessage customMessage = new StopMessage(wholeX, fractionalX, wholeZ, fractionalZ, unitId, playerId);
+        int gridValue = this.map.buildCell(playerId, unitId, unit.type);
+
+        PlayerMessage customMessage = new StopMessage(wholeX, fractionalX, wholeZ, fractionalZ, gridValue);
         this.notifyOtherPlayersOnUnitEvent(ref client, unit, playerId, unitId, ref customMessage);
     }
 
@@ -544,7 +554,7 @@ public class Room {
                     newUnit.activity = Activities.NONE;
 
                     // compute the maximum field of view for every unit
-                    byte thisUnitsFov = (byte)(RoomMaster.players[this.playersByteMapping[playerData.Key]].playerStats.map(entityType).fieldOfView * this.map.cellLength);
+                    byte thisUnitsFov = (byte)(RoomMaster.players[this.playersByteMapping[playerData.Key]].playerStats.map(entityType).fieldOfView);// * this.map.cellLength);
                     this.maximumFieldOfView = Math.Max(thisUnitsFov, this.maximumFieldOfView);
 
                     if (Unit.isBuilding(entityType)) {
@@ -561,7 +571,7 @@ public class Room {
             }
         }
 
-        this.maximumFieldOfView = (byte)(this.maximumFieldOfView * this.map.cellLength);
+        //this.maximumFieldOfView = (byte)(this.maximumFieldOfView * this.map.cellLength);
 
         // notice the clients that the game can start
         using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
@@ -591,7 +601,7 @@ public class Room {
     }
 
     private void notifyOtherPlayersOnUnitEvent(ref IClient client, Unit unit, byte unitPlayer, ushort unitId, ref PlayerMessage customMessage) {
-        HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit);
+        HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit, unitPlayer);
 
         foreach (byte playerId in seenBy) {
             IClient enemyClient = this.playersByteMapping[playerId];
@@ -691,37 +701,36 @@ public class Room {
      *  This method uses a square with a length equal to the maximum fieldOfView for any player. It checks
      *  every cell in this square to see if the current unit is visible to that one
      */
-    private HashSet<byte> whoSeesThisUnitWithSquare(IClient unitOwner, Unit modifiedUnit) {
-        byte modifiedUnitPlayer = this.map.getPlayer(this.map.getCell(modifiedUnit.gridIndex));
+    private HashSet<byte> whoSeesThisUnitWithSquare(IClient unitOwner, Unit modifiedUnit, byte modifiedUnitPlayer) {
+        Console.WriteLine("Max fow: " + this.maximumFieldOfView + " " + this.map.gridSize);
         HashSet<byte> seenBy = new HashSet<byte>();
 
         Tuple<int, int> indexCoords = this.map.getCoordinates(modifiedUnit.gridIndex);
-        int halfFieldOfView = this.maximumFieldOfView;
 
         // the line start in [0, this.map.gridSize)
-        int startLine = indexCoords.Item1 - halfFieldOfView;
+        int startLine = indexCoords.Item1 - this.maximumFieldOfView;
         startLine = (startLine < 0) ? 0 : startLine;
 
         // the line end in [0, this.map.gridSize)
-        int endLine = indexCoords.Item1 + halfFieldOfView;
+        int endLine = indexCoords.Item1 + this.maximumFieldOfView;
         endLine = (endLine >= this.map.gridSize) ? this.map.gridSize - 1 : endLine;
 
         // the column start in [0, this.map.gridSize)
-        int startCol = indexCoords.Item2 - halfFieldOfView;
+        int startCol = indexCoords.Item2 - this.maximumFieldOfView;
         startCol = (startCol < 0) ? 0 : startCol;
 
         // the column end in [0, this.map.gridSize)
-        int endCol = indexCoords.Item2 + halfFieldOfView;
+        int endCol = indexCoords.Item2 + this.maximumFieldOfView;
         endCol = (endCol >= this.map.gridSize) ? this.map.gridSize - 1 : endCol;
 
         // the starting column for the first and last lines
-        int startIndex = startLine * this.map.gridSize + startCol;
-        int endIndex = endLine * this.map.gridSize + startCol;
+        int startIndexLine = startLine * this.map.gridSize;
+        int endIndexCol = endLine * this.map.gridSize;
 
         HashSet<ushort> visited = new HashSet<ushort>();
 
-        for (int line = startIndex; line <= endIndex; line += this.map.gridSize) {
-            for (int index = line; index <= line + endCol; index++) {
+        for (int line = startIndexLine; line <= endIndexCol; line += this.map.gridSize) {
+            for (int index = line + startCol; index <= line + endCol; index++) {
                 int cell = this.map.getCell(index);
 
                 if (!this.map.isFreeCell(cell)) {
