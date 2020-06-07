@@ -17,11 +17,11 @@ class StopMessage : PlayerMessage {
 
     public override void serialize(ref DarkRiftWriter writer) {
         writer.Write(Tags.PLAYER_STOP_UNIT);
+        writer.Write(this.gridValue);
         writer.Write(this.wholeX);
         writer.Write(this.fractionalX);
         writer.Write(this.wholeZ);
         writer.Write(this.fractionalZ);
-        writer.Write(this.gridValue);
     }
 }
 

@@ -62,7 +62,6 @@ public class Room {
 
             // if there are messages in this queue to send
             if (sent > 0) {
-                Console.WriteLine("Send to " + this.playersIClientMapping[playerQueue.Key] + " " + sent + " UDP messages");
                 using (Message response = Message.Create(Tags.MIXED_MESSAGE, udpWriter)) {
                     playerQueue.Key.SendMessage(response, SendMode.Unreliable);
                 }
@@ -84,7 +83,6 @@ public class Room {
 
             // if there are messages in this queue to send
             if (sent > 0) {
-                Console.WriteLine("Send to " + this.playersIClientMapping[playerQueue.Key] + " " + sent + " TCP messages");
                 using (Message response = Message.Create(Tags.MIXED_MESSAGE, tcpWriter)) {
                     playerQueue.Key.SendMessage(response, SendMode.Reliable);
                 }
@@ -244,33 +242,31 @@ public class Room {
         float x = FloatIntConverter.convertInt(wholeX, fractionalX);
         float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
 
-        Console.WriteLine("Unit " + unitId + "moving: " + x + " " + z);
+        try {
+            Player player = RoomMaster.players[client];
+            Unit unit = player.army[unitId];
 
-        Player player = RoomMaster.players[client];
-        Unit unit = player.army[unitId];
+            byte unitPlayer = this.playersIClientMapping[client];
 
-        byte unitPlayer = this.playersIClientMapping[client];
+            int oldIndex = unit.gridIndex;
 
-        int oldIndex = unit.gridIndex;
+            this.map.cleanMarkedIndexSquare(unit.gridIndex, SizeMapping.map(unit.type), unitPlayer);
+            unit.position.x = x;
+            unit.position.z = z;
+            unit.gridIndex = this.map.getGridIndex(x, unit.position.y, z);
+            unit.rotationWhole = rotationWhole;
+            unit.rotationFractional = rotationFractional;
+            unit.activity = Activities.MOVING;
+            this.map.markCell(unit.gridIndex, this.playersIClientMapping[client], unit.type, unitId);
 
-        this.map.cleanMarkedIndexSquare(unit.gridIndex, SizeMapping.map(unit.type), unitPlayer);
-        unit.position.x = x;
-        unit.position.z = z;
-        unit.gridIndex = this.map.getGridIndex(x, unit.position.y, z);
-        unit.rotationWhole = rotationWhole;
-        unit.rotationFractional = rotationFractional;
-        unit.activity = Activities.MOVING;
-        this.map.markCell(unit.gridIndex, this.playersIClientMapping[client], unit.type, unitId);
+            int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
+            PlayerMessage customMessage = new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ,
+                        gridValue, rotationWhole, rotationFractional, Activities.MOVING);
 
-        if (oldIndex != unit.gridIndex) {
-            Console.WriteLine(unit.gridIndex);
+            this.notifyOtherPlayersOnUnitEvent(ref client, unit, unitPlayer, unitId, ref customMessage);
+        } catch (KeyNotFoundException) {
+
         }
-
-        int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
-        PlayerMessage customMessage = new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ,
-                    gridValue, rotationWhole, rotationFractional, Activities.MOVING);
-
-        this.notifyOtherPlayersOnUnitEvent(ref client, unit, unitPlayer, unitId, ref customMessage);
     }
 
     private void handlePlayerUnitRotate(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -281,23 +277,28 @@ public class Room {
         byte unitPlayer = this.playersIClientMapping[client];
         Unit unit = null;
         Player player = RoomMaster.players[client];
-        if (player.army.ContainsKey(unitId)) {
-            unit = player.army[unitId];
-        } else {
-            unit = player.buildings[unitId];
+
+        try {
+            if (player.army.ContainsKey(unitId)) {
+                unit = player.army[unitId];
+            } else {
+                unit = player.buildings[unitId];
+            }
+
+            unit.rotationWhole = wholeY;
+            unit.rotationFractional = fractionalY;
+
+            Tuple<short, short> posXParts = FloatIntConverter.convertFloat(unit.position.x);
+            Tuple<short, short> posZParts = FloatIntConverter.convertFloat(unit.position.z);
+
+            int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
+            PlayerMessage customMessage = new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
+                        gridValue, wholeY, fractionalY, unit.activity);
+
+            this.notifyOtherPlayersOnUnitEvent(ref client, unit, unitPlayer, unitId, ref customMessage);
+        } catch (KeyNotFoundException) {
+
         }
-
-        unit.rotationWhole = wholeY;
-        unit.rotationFractional = fractionalY;
-
-        Tuple<short, short> posXParts = FloatIntConverter.convertFloat(unit.position.x);
-        Tuple<short, short> posZParts = FloatIntConverter.convertFloat(unit.position.z);
-
-        int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
-        PlayerMessage customMessage = new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
-                    gridValue, wholeY, fractionalY, unit.activity);
-
-        this.notifyOtherPlayersOnUnitEvent(ref client, unit, unitPlayer, unitId, ref customMessage);
     }
 
     private void handlePlayerUnitAttack(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -311,11 +312,11 @@ public class Room {
     }
 
     private void handlePlayerUnitStop(ref IClient client, ref DarkRiftReader legacyReader) {
+        ushort unitId = (ushort)legacyReader.ReadInt16();
         short wholeX = legacyReader.ReadInt16();
         short fractionalX = legacyReader.ReadInt16();
         short wholeZ = legacyReader.ReadInt16();
         short fractionalZ = legacyReader.ReadInt16();
-        ushort unitId = (ushort)legacyReader.ReadInt16();
 
         byte playerId = this.playersIClientMapping[client];
 
@@ -327,21 +328,25 @@ public class Room {
         Player player = RoomMaster.players[client];
         Unit unit = null;
 
-        if (player.army.ContainsKey(unitId)) {
-            unit = player.army[unitId];
-        } else {
-            unit = player.buildings[unitId];
+        try {
+            if (player.army.ContainsKey(unitId)) {
+                unit = player.army[unitId];
+            } else {
+                unit = player.buildings[unitId];
+            }
+
+            unit.gridIndex = gridIndex;
+            unit.position.x = x;
+            unit.position.z = z;
+            unit.activity = Activities.NONE;
+
+            int gridValue = this.map.buildCell(playerId, unitId, unit.type);
+
+            PlayerMessage customMessage = new StopMessage(wholeX, fractionalX, wholeZ, fractionalZ, gridValue);
+            this.notifyOtherPlayersOnUnitEvent(ref client, unit, playerId, unitId, ref customMessage, sendCustomOnTCP: true);
+        } catch (KeyNotFoundException) {
+
         }
-
-        unit.gridIndex = gridIndex;
-        unit.position.x = x;
-        unit.position.z = z;
-        unit.activity = Activities.NONE;
-
-        int gridValue = this.map.buildCell(playerId, unitId, unit.type);
-
-        PlayerMessage customMessage = new StopMessage(wholeX, fractionalX, wholeZ, fractionalZ, gridValue);
-        this.notifyOtherPlayersOnUnitEvent(ref client, unit, playerId, unitId, ref customMessage);
     }
 
     private void handlePlayerBuild(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -364,7 +369,12 @@ public class Room {
 
         // add this build message to clients queues
         PlayerMessage customMessage = new BuildMessage(gridIndex, gridValue);
-        this.notifyOtherPlayersOnUnitEvent(ref client, newUnit, playerId, unitId, ref customMessage);
+
+        try {
+            this.notifyOtherPlayersOnUnitEvent(ref client, newUnit, playerId, unitId, ref customMessage);
+        } catch (KeyNotFoundException) {
+
+        }
     }
 
     private void handlePlayerGatherResource(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -389,6 +399,10 @@ public class Room {
         PlayerMessage customMessage = new UpgradeMessage(playerId, upgradeTag);
 
         foreach(IClient otherPlayer in this.getOtherPlayers(client)) {
+            if (!this.tcpMessageQueue.ContainsKey(otherPlayer)) {
+                this.tcpMessageQueue.Add(otherPlayer, new LinkedList<PlayerMessage>());
+            }
+
             this.tcpMessageQueue[otherPlayer].AddLast(customMessage);
         }
     }
@@ -588,29 +602,35 @@ public class Room {
                 Player player = RoomMaster.players[playerPair.Key];
                 writer.Write(playerPair.Value);
                 writer.Write(player.civilization);
-                Console.WriteLine("Civilization: " + playerPair.Value + " " + player.civilization);
             }
 
             using (Message response = Message.Create(Tags.GET_PLAYER_CIVILIZATION, writer)) {
                 foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
-                    Console.WriteLine("Send civ message to " + player.Key + " " + player.Value);
                     player.Key.SendMessage(response, SendMode.Reliable);
                 }
             }
         }
     }
 
-    private void notifyOtherPlayersOnUnitEvent(ref IClient client, Unit unit, byte unitPlayer, ushort unitId, ref PlayerMessage customMessage) {
+    private void notifyOtherPlayersOnUnitEvent(ref IClient client, Unit unit, byte unitPlayer, ushort unitId, ref PlayerMessage customMessage, bool sendCustomOnTCP = false) {
         HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit, unitPlayer);
 
         foreach (byte playerId in seenBy) {
             IClient enemyClient = this.playersByteMapping[playerId];
 
-            if (!this.udpMessageQueue.ContainsKey(enemyClient)) {
-                this.udpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
-            }
+            if (sendCustomOnTCP) {
+                if (!this.tcpMessageQueue.ContainsKey(enemyClient)) {
+                    this.tcpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
+                }
 
-            this.udpMessageQueue[enemyClient].AddLast(customMessage);
+                this.tcpMessageQueue[enemyClient].AddLast(customMessage);
+            } else {
+                if (!this.udpMessageQueue.ContainsKey(enemyClient)) {
+                    this.udpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
+                }
+
+                this.udpMessageQueue[enemyClient].AddLast(customMessage);
+            }            
         }
 
         Dictionary<byte, HashSet<ushort>> whatThisSees = this.whatThisUnitSees(client, unit);
@@ -702,7 +722,6 @@ public class Room {
      *  every cell in this square to see if the current unit is visible to that one
      */
     private HashSet<byte> whoSeesThisUnitWithSquare(IClient unitOwner, Unit modifiedUnit, byte modifiedUnitPlayer) {
-        Console.WriteLine("Max fow: " + this.maximumFieldOfView + " " + this.map.gridSize);
         HashSet<byte> seenBy = new HashSet<byte>();
 
         Tuple<int, int> indexCoords = this.map.getCoordinates(modifiedUnit.gridIndex);
