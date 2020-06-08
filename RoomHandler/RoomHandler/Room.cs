@@ -352,6 +352,7 @@ public class Room {
     private void handlePlayerBuild(ref IClient client, ref DarkRiftReader legacyReader) {
         int gridIndex = legacyReader.ReadInt32();
         int gridValue = legacyReader.ReadInt32();
+
         ushort unitId = this.map.getCounterValue(gridValue);
         byte buildingType = this.map.getEntityType(gridValue);
 
@@ -371,7 +372,7 @@ public class Room {
         PlayerMessage customMessage = new BuildMessage(gridIndex, gridValue);
 
         try {
-            this.notifyOtherPlayersOnUnitEvent(ref client, newUnit, playerId, unitId, ref customMessage);
+            this.notifyOtherPlayersOnUnitEvent(ref client, newUnit, playerId, unitId, ref customMessage, sendCustomOnTCP: true);
         } catch (KeyNotFoundException) {
 
         }
