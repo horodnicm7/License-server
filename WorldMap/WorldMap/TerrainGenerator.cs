@@ -445,6 +445,12 @@ public class TerrainGenerator {
             Console.WriteLine(testIndex + " is ocuppied: " + this.worldMap.isFreeIndexCell(testIndex) + " " + this.worldMap.getCell(testIndex));
             playerData.Add(new Tuple<int, int>(testIndex, value));
 
+            soldierSize = SizeMapping.map(EntityType.VILLAGER);
+            this.markNewEntity(testIndex + 10, soldierSize, EntityType.VILLAGER, playerId: playerId);
+            value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.VILLAGER);
+            Console.WriteLine(testIndex + " is ocuppied: " + this.worldMap.isFreeIndexCell(testIndex) + " " + this.worldMap.getCell(testIndex));
+            playerData.Add(new Tuple<int, int>(testIndex + 10, value));
+
             /*if (hasBarracks) {
                 int gridIndex = this.placeEntity(EntityType.BARRACKS, playerId, playerSquare);
 

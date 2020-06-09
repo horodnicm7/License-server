@@ -669,18 +669,23 @@ public class Room {
 
         // the line start in [0, this.map.gridSize)
         int startLine = currentUnitCoords.Item1 - halfFieldOfView;
-        startLine = (startLine < 0) ? 0 : startLine;
 
         // the line end in [0, this.map.gridSize)
         int endLine = currentUnitCoords.Item1 + halfFieldOfView;
-        endLine = (endLine >= this.map.gridSize) ? this.map.gridSize - 1 : endLine;
 
         // the column start in [0, this.map.gridSize)
         int startCol = currentUnitCoords.Item2 - halfFieldOfView;
-        startCol = (startCol < 0) ? 0 : startCol;
 
         // the column end in [0, this.map.gridSize)
         int endCol = currentUnitCoords.Item2 + halfFieldOfView;
+
+        if (Unit.isBuilding(currentUnit.type)) {
+            //startLine 
+        }
+
+        startLine = (startLine < 0) ? 0 : startLine;
+        endLine = (endLine >= this.map.gridSize) ? this.map.gridSize - 1 : endLine;
+        startCol = (startCol < 0) ? 0 : startCol;
         endCol = (endCol >= this.map.gridSize) ? this.map.gridSize - 1 : endCol;
 
         // the starting column for the first and last lines
@@ -771,7 +776,19 @@ public class Room {
 
                     // TODO: treat buildings differently
                     if (Unit.isBuilding(unitType)) {
+                        Unit enemyUnit = enemyPlayer.buildings[unitId];
 
+                        Size buildingSize = SizeMapping.map(unitType);
+                        Tuple<int, int> gridCoords = this.map.getCoordinates(enemyUnit.gridIndex);
+                        int centerGridIndex = this.map.gridSize * (gridCoords.Item1 + buildingSize.height / 2) +
+                            gridCoords.Item2 + buildingSize.width / 2;
+                        Vector3 buildingCenter = new Vector3(this.map.getCellPosition(centerGridIndex));
+
+                        float distance = Vector3.distance(buildingCenter, modifiedUnit.position);
+                        Stats enemyUnitStats = enemyPlayer.playerStats.map(unitType);
+                        if (distance <= (enemyUnitStats.fieldOfView * this.map.cellLength)) {
+                            seenBy.Add(playerId);
+                        }
                     } else {
                         Unit enemyUnit = enemyPlayer.army[unitId];
                         // it's a moving unit and 0 centered locally
