@@ -5,6 +5,7 @@ using System.Text;
 public class Player {
     public Dictionary<ushort, Unit> army;
     public Dictionary<ushort, Unit> buildings;
+    public Dictionary<byte, HashSet<ushort>> seenBuildings;
     public PlayerStats playerStats;
     public string name;
     public string roomUUID;
@@ -22,5 +23,6 @@ public class Player {
         this.buildings = new Dictionary<ushort, Unit>();
         this.playerStats = new PlayerStats();
         this.technologyUpgrades = new HashSet<byte>();
+        this.seenBuildings = new Dictionary<byte, HashSet<ushort>>();
     }
 }

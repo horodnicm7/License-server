@@ -411,7 +411,7 @@ public class TerrainGenerator {
         int randCenterMax = totalGridSize - this.worldMap.gridSize * this.playerSquareSize;
 
         // FOR TEST ONLY
-        int[] idxs = new int[2] { 20480, 20680};
+        int[] idxs = new int[2] { 20480, 20550};
         int h = 0;
 
         int testIndex = 400;
@@ -438,7 +438,7 @@ public class TerrainGenerator {
 
             // TODO: for test only
             //int gridIndex = this.placeEntity(EntityType.SWORDSMAN, playerId, playerSquare);
-            Size soldierSize = SizeMapping.map(EntityType.SWORDSMAN);
+            /*Size soldierSize = SizeMapping.map(EntityType.SWORDSMAN);
             this.markNewEntity(testIndex, soldierSize, EntityType.SWORDSMAN, playerId: playerId);
 
             int value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.SWORDSMAN);
@@ -449,9 +449,9 @@ public class TerrainGenerator {
             this.markNewEntity(testIndex + 10, soldierSize, EntityType.VILLAGER, playerId: playerId);
             value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.VILLAGER);
             Console.WriteLine(testIndex + " is ocuppied: " + this.worldMap.isFreeIndexCell(testIndex) + " " + this.worldMap.getCell(testIndex));
-            playerData.Add(new Tuple<int, int>(testIndex + 10, value));
+            playerData.Add(new Tuple<int, int>(testIndex + 10, value));*/
 
-            /*if (hasBarracks) {
+            if (hasBarracks) {
                 int gridIndex = this.placeEntity(EntityType.BARRACKS, playerId, playerSquare);
 
                 int value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.BARRACKS);
@@ -492,7 +492,7 @@ public class TerrainGenerator {
 
                 int value = this.worldMap.buildCell(playerId, (ushort)(this.counter - 1), EntityType.VILLAGER);
                 playerData.Add(new Tuple<int, int>(gridIndex, value));
-            }*/
+            }
 
             result.Add(playerId, playerData);
         }
