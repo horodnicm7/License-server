@@ -28,6 +28,8 @@ public class Room {
     public static byte tcpPackageLimit = 20;
     public static byte udpPackageLimit = 30;
 
+    //private bool cleanStopMovementsBlock = false;
+
     public Room(string uuid, string name, byte maxNoPlayers) {
         this.uuid = uuid;
         this.name = name;
@@ -48,6 +50,10 @@ public class Room {
     }
 
     public void sendDataToPlayersCallback() {
+        /*while (this.cleanStopMovementsBlock) {
+
+        }*/
+
         foreach(KeyValuePair<IClient, LinkedList<PlayerMessage>> playerQueue in this.udpMessageQueue) {
             DarkRiftWriter udpWriter = DarkRiftWriter.Create();
             byte sent = 0;
@@ -319,8 +325,30 @@ public class Room {
         short fractionalX = legacyReader.ReadInt16();
         short wholeZ = legacyReader.ReadInt16();
         short fractionalZ = legacyReader.ReadInt16();
-
         byte playerId = this.playersIClientMapping[client];
+
+        // TODO: this shit might produce some network lag
+        /*this.cleanStopMovementsBlock = true;
+        foreach (KeyValuePair<IClient, LinkedList<PlayerMessage>> message in this.udpMessageQueue) {
+            LinkedList<PlayerMessage> toRemove = new LinkedList<PlayerMessage>();
+
+            foreach(PlayerMessage playerMessage in message.Value) {
+                if (playerMessage.GetType().IsEquivalentTo(typeof(MovementMessage))) {
+                    int gridValue = ((MovementMessage)(playerMessage)).gridValue;
+                    if (this.map.getCounterValue(gridValue) == unitId && this.map.getPlayer(gridValue) == playerId) {
+                        toRemove.AddLast(playerMessage);
+                    }
+                }
+            }
+
+            while(toRemove.Count > 0) {
+                PlayerMessage playerMessage = toRemove.First.Value;
+                toRemove.RemoveFirst();
+
+                message.Value.Remove(playerMessage);
+            }
+        }
+        this.cleanStopMovementsBlock = false;*/
 
         float x = FloatIntConverter.convertInt(wholeX, fractionalX);
         float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
@@ -375,12 +403,11 @@ public class Room {
         // add this build message to clients queues
         PlayerMessage customMessage = new BuildMessage(gridIndex, gridValue);
 
-        Console.WriteLine("Shit built by " + playerId);
-        //try {
+        try {
             this.notifyOtherPlayersOnUnitEvent(ref client, newUnit, playerId, unitId, ref customMessage, sendCustomOnTCP: true);
-        //} catch (KeyNotFoundException) {
-
-        //}
+        } catch (KeyNotFoundException e) {
+            Console.WriteLine(e.ToString());
+        }
     }
 
     private void handlePlayerGatherResource(ref IClient client, ref DarkRiftReader legacyReader) {

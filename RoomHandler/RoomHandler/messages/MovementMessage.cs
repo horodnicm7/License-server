@@ -6,7 +6,7 @@ class MovementMessage : PlayerMessage {
     private short wholeZ;
     private short fractionalZ;
 
-    private int gridValue;
+    public int gridValue;
     private short wholeRotationY;
     private short fractionalRotationY;
     private byte activity;
