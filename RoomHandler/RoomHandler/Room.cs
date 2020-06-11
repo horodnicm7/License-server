@@ -27,6 +27,7 @@ public class Room {
     private Dictionary<IClient, LinkedList<PlayerMessage>> tcpMessageQueue;
     private Dictionary<IClient, LinkedList<PlayerMessage>> udpMessageQueue;
     private Dictionary<Tuple<ushort, byte>, AttackEvent> unitsToReceiveDamage;
+    private HashSet<int> attackingUnits;
     public static byte tcpPackageLimit = 20;
     public static byte udpPackageLimit = 30;
 
@@ -41,6 +42,7 @@ public class Room {
         this.udpMessageQueue = new Dictionary<IClient, LinkedList<PlayerMessage>>();
         this.tcpMessageQueue = new Dictionary<IClient, LinkedList<PlayerMessage>>();
         this.unitsToReceiveDamage = new Dictionary<Tuple<ushort, byte>, AttackEvent>();
+        this.attackingUnits = new HashSet<int>();
 
         this.playersIClientMapping = new Dictionary<IClient, byte>();
         this.playersByteMapping = new Dictionary<byte, IClient>();
@@ -130,9 +132,14 @@ public class Room {
 
             while (sent <= Room.udpPackageLimit && playerQueue.Value.Count > 0) {
                 PlayerMessage playerMessage = playerQueue.Value.First.Value;
-                playerMessage.serialize(ref udpWriter);
-
                 playerQueue.Value.RemoveFirst();
+
+                if (playerMessage.GetType() == typeof(MovementMessage) && this.attackingUnits.Contains(((MovementMessage)playerMessage).gridValue)) {
+                    continue;
+                }
+                
+                playerMessage.serialize(ref udpWriter);
+                
                 sent++;
             }
 
@@ -333,8 +340,6 @@ public class Room {
             attackEvent.Value.removeAttacker(new Tuple<ushort, byte, short>(unitId, unitPlayer, (short)(unitStats.attack + unitStats.upgradedAttack)));
         }
 
-        int oldIndex = unit.gridIndex;
-
         this.map.cleanMarkedIndexSquare(unit.gridIndex, SizeMapping.map(unit.type), unitPlayer);
         unit.position.x = x;
         unit.position.z = z;
@@ -345,6 +350,11 @@ public class Room {
         this.map.markCell(unit.gridIndex, this.playersIClientMapping[client], unit.type, unitId);
 
         int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
+
+        if (this.attackingUnits.Contains(gridValue)) {
+            this.attackingUnits.Remove(gridValue);
+        }
+
         PlayerMessage customMessage = new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ,
                     gridValue, rotationWhole, rotationFractional, Activities.MOVING);
 
@@ -395,6 +405,7 @@ public class Room {
         Console.WriteLine("Attack " + attackerId + " " + victimId + " " + victimPlayerId);
 
         byte attackerPlayerId = this.playersIClientMapping[client];
+
         Player attackerPlayer = RoomMaster.players[client];
         Player victimPlayer = RoomMaster.players[this.playersByteMapping[victimPlayerId]];
 
@@ -404,6 +415,9 @@ public class Room {
         } else {
             attackerUnit = attackerPlayer.buildings[attackerId];
         }
+
+        int attackerGridValue = this.map.buildCell(attackerPlayerId, attackerId, attackerUnit.type);
+        this.attackingUnits.Add(attackerGridValue);
 
         Unit victimUnit = null;
         if (victimPlayer.army.ContainsKey(victimId)) {
@@ -442,6 +456,13 @@ public class Room {
         bool isBuildingUnit = false;
 
         if (player.army.ContainsKey(unitId)) {
+            Unit unit = player.army[unitId];
+            int gridValue = this.map.buildCell(playerId, unitId, unit.type);
+
+            if (this.attackingUnits.Contains(gridValue)) {
+                this.attackingUnits.Remove(gridValue);
+            }
+
             player.army.Remove(unitId);
         } else {
             player.buildings.Remove(unitId);
@@ -525,6 +546,9 @@ public class Room {
             }
 
             int gridValue = this.map.buildCell(playerId, unitId, unit.type);
+            if (this.attackingUnits.Contains(gridValue)) {
+                this.attackingUnits.Remove(gridValue);
+            }
 
             PlayerMessage customMessage = new StopMessage(wholeX, fractionalX, wholeZ, fractionalZ, gridValue);
             this.notifyOtherPlayersOnUnitEvent(ref client, unit, playerId, unitId, ref customMessage, sendCustomOnTCP: true);
