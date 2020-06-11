@@ -56,6 +56,11 @@ public class Room {
         LinkedList<Tuple<ushort, byte>> garbageAttackEvents = new LinkedList<Tuple<ushort, byte>>();
 
         foreach(KeyValuePair<Tuple<ushort, byte>, AttackEvent> damageReceiveEvent in this.unitsToReceiveDamage) {
+            if (damageReceiveEvent.Value.countAttackers == 0) {
+                garbageAttackEvents.AddLast(damageReceiveEvent.Key);
+                continue;
+            }
+
             Player player = RoomMaster.players[this.playersByteMapping[damageReceiveEvent.Key.Item2]];
             Unit victim = null;
 
@@ -69,6 +74,7 @@ public class Room {
             }
 
             bool isDead = damageReceiveEvent.Value.isDeadAfterInflictedAttacks(ref victim);
+            Console.WriteLine("Damage: " + victim.currentHp);
 
             if (isDead) {
                 // notify all players about this unit's death and remove the reference from player's seenBuildings
@@ -316,27 +322,33 @@ public class Room {
         float x = FloatIntConverter.convertInt(wholeX, fractionalX);
         float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
 
+        Player player = RoomMaster.players[client];
+        Unit unit = player.army[unitId];
+
+        byte unitPlayer = this.playersIClientMapping[client];
+
+        // remove this unit from the attack avents queue if it exists
+        Stats unitStats = player.playerStats.map(unit.type);
+        foreach (KeyValuePair<Tuple<ushort, byte>, AttackEvent> attackEvent in this.unitsToReceiveDamage) {
+            attackEvent.Value.removeAttacker(new Tuple<ushort, byte, short>(unitId, unitPlayer, (short)(unitStats.attack + unitStats.upgradedAttack)));
+        }
+
+        int oldIndex = unit.gridIndex;
+
+        this.map.cleanMarkedIndexSquare(unit.gridIndex, SizeMapping.map(unit.type), unitPlayer);
+        unit.position.x = x;
+        unit.position.z = z;
+        unit.gridIndex = this.map.getGridIndex(x, unit.position.y, z);
+        unit.rotationWhole = rotationWhole;
+        unit.rotationFractional = rotationFractional;
+        unit.activity = Activities.MOVING;
+        this.map.markCell(unit.gridIndex, this.playersIClientMapping[client], unit.type, unitId);
+
+        int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
+        PlayerMessage customMessage = new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ,
+                    gridValue, rotationWhole, rotationFractional, Activities.MOVING);
+
         try {
-            Player player = RoomMaster.players[client];
-            Unit unit = player.army[unitId];
-
-            byte unitPlayer = this.playersIClientMapping[client];
-
-            int oldIndex = unit.gridIndex;
-
-            this.map.cleanMarkedIndexSquare(unit.gridIndex, SizeMapping.map(unit.type), unitPlayer);
-            unit.position.x = x;
-            unit.position.z = z;
-            unit.gridIndex = this.map.getGridIndex(x, unit.position.y, z);
-            unit.rotationWhole = rotationWhole;
-            unit.rotationFractional = rotationFractional;
-            unit.activity = Activities.MOVING;
-            this.map.markCell(unit.gridIndex, this.playersIClientMapping[client], unit.type, unitId);
-
-            int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
-            PlayerMessage customMessage = new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ,
-                        gridValue, rotationWhole, rotationFractional, Activities.MOVING);
-
             this.notifyOtherPlayersOnUnitEvent(ref client, unit, unitPlayer, unitId, ref customMessage);
         } catch (KeyNotFoundException) {
 
@@ -380,6 +392,8 @@ public class Room {
         ushort victimId = (ushort)legacyReader.ReadUInt16();
         byte victimPlayerId = legacyReader.ReadByte();
 
+        Console.WriteLine("Attack " + attackerId + " " + victimId + " " + victimPlayerId);
+
         byte attackerPlayerId = this.playersIClientMapping[client];
         Player attackerPlayer = RoomMaster.players[client];
         Player victimPlayer = RoomMaster.players[this.playersByteMapping[victimPlayerId]];
@@ -396,6 +410,17 @@ public class Room {
             victimUnit = victimPlayer.army[victimId];
         } else {
             victimUnit = victimPlayer.buildings[victimId];
+        }
+
+        Stats attackerStats = attackerPlayer.playerStats.map(attackerUnit.type);
+        Tuple<ushort, byte, short> attackerData = new Tuple<ushort, byte, short>(attackerId, attackerPlayerId, (short)(attackerStats.attack + attackerStats.upgradedAttack));
+        Tuple<ushort, byte> victimData = new Tuple<ushort, byte>(victimId, victimPlayerId);
+        if (!this.unitsToReceiveDamage.ContainsKey(victimData)) {
+            this.unitsToReceiveDamage.Add(victimData, new AttackEvent(attackerData));
+        } else {
+            if (this.unitsToReceiveDamage[victimData].hasAttacker(attackerData.Item1, attackerData.Item2)) {
+                this.unitsToReceiveDamage[victimData].addAttacker(ref attackerData);
+            }
         }
 
         attackerUnit.activity = Activities.ATTACKING;

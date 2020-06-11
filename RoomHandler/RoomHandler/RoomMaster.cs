@@ -79,7 +79,6 @@ public class RoomMaster : Plugin {
                     case Tags.RECEIVE_PLAYER_NAME:
                         string playerName = reader.ReadString();
                         RoomMaster.players[client] = new Player(playerName);
-                        Logger.print("Joining: " + client.ID + " " + playerName);
                         break;
                     case Tags.CREATE_ROOM:
                         if (!RoomMaster.players.ContainsKey(client)) {
@@ -92,10 +91,6 @@ public class RoomMaster : Plugin {
                         byte numberOfPlayers = Byte.Parse(roomInfo[0]);
                         
                         string uuid = Guid.NewGuid().ToString();
-
-                        Logger.print("UUID: " + uuid);
-                        Logger.print("Room name: " + roomName);
-                        Logger.print("No players: " + numberOfPlayers);
 
                         // create a new room, register it and set the current client as owner
                         Room newRoom = new Room(uuid, roomName, numberOfPlayers);
@@ -137,8 +132,6 @@ public class RoomMaster : Plugin {
                     case Tags.JOIN_ROOM:
                         string roomId = reader.ReadString();
                         Room thisRoom = this.rooms[roomId];
-
-                        Logger.print("Client trying " + client.ID + " to join: " + this.rooms.ContainsKey(roomId));
 
                         if (thisRoom.playersIClientMapping.Count == thisRoom.maxNumberOfPlayers || !this.rooms.ContainsKey(roomId)) {
                             using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
@@ -199,7 +192,6 @@ public class RoomMaster : Plugin {
                         break;
                     case Tags.GET_PLAYER_CIVILIZATION:
                         byte civId = reader.ReadByte();
-                        Console.WriteLine("Civ ID: " + client + " " + civId);
                         Player playerClass = RoomMaster.players[client];
                         playerClass.civilization = civId;
                         break;
@@ -223,8 +215,6 @@ public class RoomMaster : Plugin {
 
             roomsList = roomsList + newEntry;
         }
-
-        Logger.print("Rooms list: \n" + roomsList);
 
         using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
             writer.Write(roomsList);

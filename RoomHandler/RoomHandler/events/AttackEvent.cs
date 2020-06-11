@@ -14,6 +14,7 @@ class AttackEvent {
     }
 
     public bool isDeadAfterInflictedAttacks(ref Unit victim) {
+        Console.WriteLine("Apply damage from no enemies: " + this.attackers.Count);
         foreach(Tuple<ushort, byte, short> attacker in this.attackers) {
             victim.currentHp -= attacker.Item3; // inflict damage
             if (victim.currentHp <= 0) {
@@ -25,7 +26,13 @@ class AttackEvent {
         return false;
     }
 
-    public void addAttacker(Tuple<ushort, byte, short> attacker) {
+    public int countAttackers {
+        get {
+            return this.attackers.Count;
+        }
+    }
+
+    public void addAttacker(ref Tuple<ushort, byte, short> attacker) {
         this.attackers.AddLast(attacker);
     }
 
