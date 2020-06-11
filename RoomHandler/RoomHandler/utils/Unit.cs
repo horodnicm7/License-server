@@ -9,14 +9,16 @@ public class Unit {
     public int gridIndex;
     public byte type;
     public byte activity;
+    public short currentHp;
 
-    public Unit(Vector3 position, short rotationWhole, short rotationFractional, byte type, int gridIndex) {
+    public Unit(Vector3 position, short rotationWhole, short rotationFractional, byte type, short currentHp, int gridIndex) {
         this.position = position;
         this.rotationWhole = rotationWhole;
         this.rotationFractional = rotationFractional;
         this.type = type;
 
         this.gridIndex = gridIndex;
+        this.currentHp = currentHp;
         this.activity = Activities.NONE;
     }
 

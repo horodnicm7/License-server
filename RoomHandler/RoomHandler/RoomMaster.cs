@@ -18,7 +18,8 @@ public class RoomMaster : Plugin {
 
     public static int PACKET_SIZE_LIMIT = 32000;
 
-    private System.Timers.Timer roomsTimer;
+    private System.Timers.Timer packetSendTimer;
+    private System.Timers.Timer damagePacketsTimer;
 
     public RoomMaster(PluginLoadData pluginLoadData) : base(pluginLoadData) {
         RoomMaster.players = new Dictionary<IClient, Player>();
@@ -28,24 +29,35 @@ public class RoomMaster : Plugin {
         
         this.rooms = new Dictionary<string, Room>();
 
-        this.startRoomsTimer();
+        this.startRoomsTimers();
     }
 
     ~RoomMaster() {
-        this.roomsTimer.Stop();
-        this.roomsTimer.Dispose();
+        this.packetSendTimer.Stop();
+        this.packetSendTimer.Dispose();
     }
 
-    private void startRoomsTimer() {
-        this.roomsTimer = new System.Timers.Timer(100);
-        this.roomsTimer.Elapsed += onRoomsTimerEvent;
-        this.roomsTimer.AutoReset = true;
-        this.roomsTimer.Enabled = true;
+    private void startRoomsTimers() {
+        this.packetSendTimer = new System.Timers.Timer(100);
+        this.packetSendTimer.Elapsed += onRoomsTimerEvent;
+        this.packetSendTimer.AutoReset = true;
+        this.packetSendTimer.Enabled = true;
+
+        this.damagePacketsTimer = new System.Timers.Timer(1000);
+        this.damagePacketsTimer.Elapsed += onDamagePacketsTimerEvent;
+        this.damagePacketsTimer.AutoReset = true;
+        this.damagePacketsTimer.Enabled = true;
     }
 
     private void onRoomsTimerEvent(Object source, ElapsedEventArgs e) {
         foreach(KeyValuePair<string, Room> room in this.rooms) {
             room.Value.sendDataToPlayersCallback();
+        }
+    }
+
+    private void onDamagePacketsTimerEvent(Object source, ElapsedEventArgs e) {
+        foreach (KeyValuePair<string, Room> room in this.rooms) {
+            room.Value.sendInflictedDamagePackets();
         }
     }
 

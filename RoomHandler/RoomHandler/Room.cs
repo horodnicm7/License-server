@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Text;
 using DarkRift;
 using DarkRift.Server;
+using YamlDotNet.Core.Tokens;
 
 public class Room {
     // it will work with the instances from RoomMaster and this dictionary will only keep 
@@ -25,6 +26,7 @@ public class Room {
 
     private Dictionary<IClient, LinkedList<PlayerMessage>> tcpMessageQueue;
     private Dictionary<IClient, LinkedList<PlayerMessage>> udpMessageQueue;
+    private Dictionary<Tuple<ushort, byte>, AttackEvent> unitsToReceiveDamage;
     public static byte tcpPackageLimit = 20;
     public static byte udpPackageLimit = 30;
 
@@ -38,6 +40,7 @@ public class Room {
 
         this.udpMessageQueue = new Dictionary<IClient, LinkedList<PlayerMessage>>();
         this.tcpMessageQueue = new Dictionary<IClient, LinkedList<PlayerMessage>>();
+        this.unitsToReceiveDamage = new Dictionary<Tuple<ushort, byte>, AttackEvent>();
 
         this.playersIClientMapping = new Dictionary<IClient, byte>();
         this.playersByteMapping = new Dictionary<byte, IClient>();
@@ -47,6 +50,67 @@ public class Room {
         this.map = null;
         this.playersIClientMapping.Clear();
         this.playersByteMapping.Clear();
+    }
+
+    public void sendInflictedDamagePackets() {
+        LinkedList<Tuple<ushort, byte>> garbageAttackEvents = new LinkedList<Tuple<ushort, byte>>();
+
+        foreach(KeyValuePair<Tuple<ushort, byte>, AttackEvent> damageReceiveEvent in this.unitsToReceiveDamage) {
+            Player player = RoomMaster.players[this.playersByteMapping[damageReceiveEvent.Key.Item2]];
+            Unit victim = null;
+
+            if (player.army.ContainsKey(damageReceiveEvent.Key.Item1)) {
+                victim = player.army[damageReceiveEvent.Key.Item1];
+            } else if (player.buildings.ContainsKey(damageReceiveEvent.Key.Item1)) {
+                victim = player.buildings[damageReceiveEvent.Key.Item1];
+            } else {
+                garbageAttackEvents.AddLast(damageReceiveEvent.Key);
+                continue;
+            }
+
+            bool isDead = damageReceiveEvent.Value.isDeadAfterInflictedAttacks(ref victim);
+
+            if (isDead) {
+                // notify all players about this unit's death and remove the reference from player's seenBuildings
+                PlayerMessage deathMessage = new DeathMessage(damageReceiveEvent.Key.Item1, damageReceiveEvent.Key.Item2);
+                foreach(KeyValuePair<IClient, byte> playerMap in this.playersIClientMapping) {
+                    if (this.tcpMessageQueue.ContainsKey(playerMap.Key)) {
+                        this.tcpMessageQueue.Add(playerMap.Key, new LinkedList<PlayerMessage>());
+                    }
+                    this.tcpMessageQueue[playerMap.Key].AddLast(deathMessage);
+
+                    // remove the seenBuildings reference
+                    Player currentPlayer = RoomMaster.players[playerMap.Key];
+                    if (currentPlayer.seenBuildings[damageReceiveEvent.Key.Item2].Contains(damageReceiveEvent.Key.Item1)) {
+                        currentPlayer.seenBuildings[damageReceiveEvent.Key.Item2].Remove(damageReceiveEvent.Key.Item1);
+                    }
+                }
+
+                // schedule this attack event to be removed from the queue
+                garbageAttackEvents.AddLast(damageReceiveEvent.Key);
+
+                // remove the unit reference from the server
+                if (player.army.ContainsKey(damageReceiveEvent.Key.Item1)) {
+                    player.army.Remove(damageReceiveEvent.Key.Item1);
+                } else {
+                    player.buildings.Remove(damageReceiveEvent.Key.Item1);
+                }
+            } else {
+                // notify all players about this unit's current hp
+                PlayerMessage hpUpgrade = new HpUpgradeMessage(damageReceiveEvent.Key.Item2, damageReceiveEvent.Key.Item1, victim.currentHp);
+                foreach(KeyValuePair<IClient, byte> playerMap in this.playersIClientMapping) {
+                    if (!this.udpMessageQueue.ContainsKey(playerMap.Key)) {
+                        this.udpMessageQueue.Add(playerMap.Key, new LinkedList<PlayerMessage>());
+                    }
+                    this.udpMessageQueue[playerMap.Key].AddLast(hpUpgrade);
+                }
+            }
+        }
+
+        while (garbageAttackEvents.Count > 0) {
+            this.unitsToReceiveDamage.Remove(garbageAttackEvents.First.Value);
+            garbageAttackEvents.RemoveFirst();
+        }
     }
 
     public void sendDataToPlayersCallback() {
@@ -181,6 +245,9 @@ public class Room {
                 case Tags.PLAYER_STOP_UNIT:
                     this.handlePlayerUnitStop(ref client, ref legacyReader);
                     break;
+                case Tags.PLAYER_UNIT_DEATH:
+                    this.handlePlayerUnitDeath(ref client, ref legacyReader);
+                    break;
             }
         }
     }
@@ -205,16 +272,17 @@ public class Room {
         byte type = this.map.getEntityType(gridValue);
         bool sendSpawnToOthers = false;
         Unit newUnit = null;
+        Stats unitStats = player.playerStats.map(type);
 
         Vector3 positionVector = new Vector3(x, 0, z);
         if (Unit.isBuilding(type)) {
             if (!player.buildings.ContainsKey(counterValue)) {
-                newUnit = new Unit(positionVector, rotationWhole, rotationFractional, type, gridIndex);
+                newUnit = new Unit(positionVector, rotationWhole, rotationFractional, type, unitStats.hp, gridIndex);
                 player.buildings.Add(counterValue, newUnit);
                 sendSpawnToOthers = true;
             }
         } else if (!player.army.ContainsKey(counterValue)) {
-            newUnit = new Unit(positionVector, rotationWhole, rotationFractional, type, gridIndex);
+            newUnit = new Unit(positionVector, rotationWhole, rotationFractional, type, unitStats.hp, gridIndex);
             player.army.Add(counterValue, newUnit);
             sendSpawnToOthers = true;
         }
@@ -237,7 +305,7 @@ public class Room {
     }
 
     private void handlePlayerUnitMove(ref IClient client, ref DarkRiftReader legacyReader) {
-        ushort unitId = (ushort)legacyReader.ReadInt16();
+        ushort unitId = legacyReader.ReadUInt16();
         short wholeX = legacyReader.ReadInt16();
         short fractionalX = legacyReader.ReadInt16();
         short wholeZ = legacyReader.ReadInt16();
@@ -276,7 +344,7 @@ public class Room {
     }
 
     private void handlePlayerUnitRotate(ref IClient client, ref DarkRiftReader legacyReader) {
-        ushort unitId = (ushort)legacyReader.ReadInt16();
+        ushort unitId = legacyReader.ReadUInt16();
         short wholeY = legacyReader.ReadInt16();
         short fractionalY = legacyReader.ReadInt16();
 
@@ -308,19 +376,74 @@ public class Room {
     }
 
     private void handlePlayerUnitAttack(ref IClient client, ref DarkRiftReader legacyReader) {
+        ushort attackerId = (ushort)legacyReader.ReadUInt16();
+        ushort victimId = (ushort)legacyReader.ReadUInt16();
+        byte victimPlayerId = legacyReader.ReadByte();
 
+        byte attackerPlayerId = this.playersIClientMapping[client];
+        Player attackerPlayer = RoomMaster.players[client];
+        Player victimPlayer = RoomMaster.players[this.playersByteMapping[victimPlayerId]];
+
+        Unit attackerUnit = null;
+        if (attackerPlayer.army.ContainsKey(attackerId)) {
+            attackerUnit = attackerPlayer.army[attackerId];
+        } else {
+            attackerUnit = attackerPlayer.buildings[attackerId];
+        }
+
+        Unit victimUnit = null;
+        if (victimPlayer.army.ContainsKey(victimId)) {
+            victimUnit = victimPlayer.army[victimId];
+        } else {
+            victimUnit = victimPlayer.buildings[victimId];
+        }
+
+        attackerUnit.activity = Activities.ATTACKING;
+        PlayerMessage customMessage = new AttackMessage(attackerId, attackerPlayerId);
+
+        try {
+            this.notifyOtherPlayersOnUnitEvent(ref client, attackerUnit, attackerPlayerId, attackerId, ref customMessage, sendCustomOnTCP: true);
+        } catch (KeyNotFoundException e) {
+            Console.WriteLine("Key not found in handlePlayerUnitAttack " + e.ToString());
+        }
     }
 
     private void handlePlayerUnitDeath(ref IClient client, ref DarkRiftReader legacyReader) {
-        short unitIndex = legacyReader.ReadInt16();
+        ushort unitId = legacyReader.ReadUInt16();
+        byte playerId = legacyReader.ReadByte();
 
-        Console.WriteLine("Unit death: " + unitIndex);
+        // remove the reference from player's tables
+        Player player = RoomMaster.players[this.playersByteMapping[playerId]];
+        bool isBuildingUnit = false;
 
-        // TODO: sa stergi si din seenBuildings referinta in anumite conditii
+        if (player.army.ContainsKey(unitId)) {
+            player.army.Remove(unitId);
+        } else {
+            player.buildings.Remove(unitId);
+            isBuildingUnit = true;
+        }
+
+        Console.WriteLine("Unit death: " + unitId + " from player: " + playerId);
+
+        if (isBuildingUnit == false) {
+            return;
+        }
+
+        foreach(IClient otherClient in this.getOtherPlayers(client)) {
+            Player otherPlayer = RoomMaster.players[otherClient];
+
+            if (otherPlayer.seenBuildings.ContainsKey(playerId)) {
+                if (otherPlayer.seenBuildings[playerId].Contains(unitId)) {
+                    otherPlayer.seenBuildings[playerId].Remove(unitId);
+                }
+            } else {
+                continue;
+            }
+        }
     }
 
     private void handlePlayerUnitStop(ref IClient client, ref DarkRiftReader legacyReader) {
-        ushort unitId = (ushort)legacyReader.ReadInt16();
+        ushort unitId = legacyReader.ReadUInt16();
         short wholeX = legacyReader.ReadInt16();
         short fractionalX = legacyReader.ReadInt16();
         short wholeZ = legacyReader.ReadInt16();
@@ -370,6 +493,12 @@ public class Room {
             unit.position.z = z;
             unit.activity = Activities.NONE;
 
+            // remove this unit from the attack avents queue if it exists
+            Stats unitStats = player.playerStats.map(unit.type);
+            foreach(KeyValuePair<Tuple<ushort, byte>, AttackEvent> attackEvent in this.unitsToReceiveDamage) {
+                attackEvent.Value.removeAttacker(new Tuple<ushort, byte, short>(unitId, playerId, (short)(unitStats.attack + unitStats.upgradedAttack)));
+            }
+
             int gridValue = this.map.buildCell(playerId, unitId, unit.type);
 
             PlayerMessage customMessage = new StopMessage(wholeX, fractionalX, wholeZ, fractionalZ, gridValue);
@@ -385,18 +514,19 @@ public class Room {
 
         ushort unitId = this.map.getCounterValue(gridValue);
         byte buildingType = this.map.getEntityType(gridValue);
+        byte playerId = this.map.getPlayer(gridValue);
 
         Console.WriteLine("Player build: " + unitId + " " + buildingType);
 
         // create the new entity and add it to its player
         Vector3 position = new Vector3(this.map.getCellPosition(gridIndex));
-        Unit newUnit = new Unit(position, 0, 0, buildingType, gridIndex);
-
         Player player = RoomMaster.players[client];
+        Stats unitStats = player.playerStats.map(buildingType);
+
+        Unit newUnit = new Unit(position, 0, 0, buildingType, unitStats.hp, gridIndex);
         player.buildings.Add(unitId, newUnit);
 
         // mark this building on the grid
-        byte playerId = this.map.getPlayer(gridValue);
         Size buildingSize = SizeMapping.map(buildingType);
         this.map.markIndexSquare(gridIndex, buildingSize, buildingType, playerId, unitId);
 
@@ -597,7 +727,8 @@ public class Room {
                     ushort entityId = this.map.getCounterValue(entry.Item2);
 
                     Tuple<float, float, float> rawPos = this.map.getCellPosition(entry.Item1);
-                    Unit newUnit = new Unit(new Vector3(rawPos), 0, 0, entityType, entry.Item1);
+                    Stats unitStats = currentPlayer.playerStats.map(entityType);
+                    Unit newUnit = new Unit(new Vector3(rawPos), 0, 0, entityType, unitStats.hp, entry.Item1);
                     newUnit.activity = Activities.NONE;
 
                     // compute the maximum field of view for every unit
