@@ -605,10 +605,8 @@ public class Room {
         // mark this building on the grid
         Size buildingSize = SizeMapping.map(buildingType);
         this.map.markIndexSquare(gridIndex, buildingSize, buildingType, playerId, unitId);
-
         // add this build message to clients queues
         PlayerMessage customMessage = new BuildMessage(gridIndex, gridValue);
-
         try {
             this.notifyOtherPlayersOnUnitEvent(ref client, newUnit, playerId, unitId, ref customMessage, sendCustomOnTCP: true);
         } catch (KeyNotFoundException e) {
@@ -924,7 +922,7 @@ public class Room {
         Player currentPlayer = RoomMaster.players[unitOwner];
 
         Tuple<int, int> currentUnitCoords = this.map.getCoordinates(currentUnit.gridIndex);
-        int halfFieldOfView = (int)(currentPlayer.playerStats.map(currentUnit.type).fieldOfView * this.map.cellLength);
+        int halfFieldOfView = (int)(currentPlayer.playerStats.map(currentUnit.type).fieldOfView / 2);
 
         // the line start in [0, this.map.gridSize)
         int startLine = currentUnitCoords.Item1 - halfFieldOfView;
