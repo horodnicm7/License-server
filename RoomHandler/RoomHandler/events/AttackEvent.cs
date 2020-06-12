@@ -5,25 +5,20 @@ using System.Linq;
 class AttackEvent {
     private LinkedList<Tuple<ushort, byte, short>> attackers;
 
-    public AttackEvent(Tuple<ushort, byte, short> initialAttacker = null) {
+    public AttackEvent(Tuple<ushort, byte, short> initialAttacker) {
         this.attackers = new LinkedList<Tuple<ushort, byte, short>>();
-        
-        if (initialAttacker != null) {
-            this.attackers.AddLast(initialAttacker);
-        }
+        this.attackers.AddLast(initialAttacker);
     }
 
-    public bool isDeadAfterInflictedAttacks(ref Unit victim) {
+    public void isDeadAfterInflictedAttacks(ref Unit victim) {
         Console.WriteLine("Apply damage from no enemies: " + this.attackers.Count);
         foreach(Tuple<ushort, byte, short> attacker in this.attackers) {
             victim.currentHp -= attacker.Item3; // inflict damage
             if (victim.currentHp <= 0) {
                 victim.currentHp = 0; // normalize
-                return true; // signal death
+                break;
             }
         }
-
-        return false;
     }
 
     public int countAttackers {
