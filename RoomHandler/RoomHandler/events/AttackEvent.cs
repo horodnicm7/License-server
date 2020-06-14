@@ -11,7 +11,6 @@ class AttackEvent {
     }
 
     public void isDeadAfterInflictedAttacks(ref Unit victim) {
-        Console.WriteLine("Apply damage from no enemies: " + this.attackers.Count);
         foreach(Tuple<ushort, byte, short> attacker in this.attackers) {
             victim.currentHp -= attacker.Item3; // inflict damage
             if (victim.currentHp <= 0) {
