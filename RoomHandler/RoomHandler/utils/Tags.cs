@@ -36,7 +36,9 @@
     public const byte PLAYER_TECHNOLOGY_UPGRADE = 108;
     public const byte PLAYER_BUILDING_DISCOVER = 109;
     public const byte PLAYER_UNIT_HP_UPGRADE = 110;
-    public const byte MIXED_MESSAGE = 111; // signal a package composed from smaller packages
+    public const byte PLAYER_SEND_PROJECTILE = 111;
+    public const byte PLAYER_TAKE_DAMAGE = 112;
+    public const byte MIXED_MESSAGE = 113; // signal a package composed from smaller packages
 
     // ACKs or NACKs received by players during gameplay
     public const byte PLAYER_ACTION_VALIDATION = 120;

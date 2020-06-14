@@ -27,7 +27,7 @@ public class Room {
     private Dictionary<IClient, LinkedList<PlayerMessage>> udpMessageQueue;
     private Dictionary<Tuple<ushort, byte>, AttackEvent> unitsToReceiveDamage;
     private HashSet<int> attackingUnits;
-    public static byte tcpPackageLimit = 20;
+    public static byte tcpPackageLimit = 30;
     public static byte udpPackageLimit = 30;
 
     //private bool cleanStopMovementsBlock = false;
@@ -224,6 +224,12 @@ public class Room {
                 case Tags.PLAYER_TECHNOLOGY_UPGRADE:
                     this.handlePlayerTechnologyUpgrade(ref client, ref reader);
                     break;
+                case Tags.PLAYER_SEND_PROJECTILE:
+                    this.handleArrowShoot(ref client, ref reader);
+                    break;
+                case Tags.PLAYER_TAKE_DAMAGE:
+                    this.handlePlayerUnitDamage(ref client, ref reader);
+                    break;
             }
         }
     }
@@ -257,7 +263,73 @@ public class Room {
                 case Tags.PLAYER_UNIT_DEATH:
                     this.handlePlayerUnitDeath(ref client, ref legacyReader);
                     break;
+                case Tags.PLAYER_SEND_PROJECTILE:
+                    this.handleArrowShoot(ref client, ref legacyReader);
+                    break;
+                case Tags.PLAYER_TAKE_DAMAGE:
+                    this.handlePlayerUnitDamage(ref client, ref legacyReader);
+                    break;
             }
+        }
+    }
+
+    private void handlePlayerUnitDamage(ref IClient client, ref DarkRiftReader legacyReader) {
+        ushort unitId = legacyReader.ReadUInt16();
+        byte playerId = legacyReader.ReadByte();
+        byte damage = legacyReader.ReadByte();
+
+        Player player = RoomMaster.players[this.playersByteMapping[playerId]];
+
+        Unit unit;
+        if (player.army.ContainsKey(unitId)) {
+            unit = player.army[unitId];
+        } else if (player.buildings.ContainsKey(unitId)) {
+            unit = player.buildings[unitId];
+        } else {
+            return;
+        }
+
+        unit.currentHp -= damage;
+        PlayerMessage customMessage = new HpUpgradeMessage(playerId, unitId, unit.currentHp);
+
+        foreach (KeyValuePair<IClient, byte> playerMap in this.playersIClientMapping) {
+            if (!this.udpMessageQueue.ContainsKey(playerMap.Key)) {
+                this.udpMessageQueue.Add(playerMap.Key, new LinkedList<PlayerMessage>());
+            }
+            this.udpMessageQueue[playerMap.Key].AddLast(customMessage);
+        }
+    }
+
+    private void handleArrowShoot(ref IClient client, ref DarkRiftReader legacyReader) {
+        ushort shooterUnitId = legacyReader.ReadUInt16();
+        ushort targetUnitId = legacyReader.ReadUInt16();
+        byte targetPlayerId = legacyReader.ReadByte();
+        short rotationWhole = legacyReader.ReadInt16();
+        short rotationFractional = legacyReader.ReadInt16();
+
+        byte shooterPlayerId = this.playersIClientMapping[client];
+
+        Player shooterPlayer = RoomMaster.players[client];
+        Unit shooterUnit;
+
+        if (shooterPlayer.army.ContainsKey(shooterUnitId)) {
+            shooterUnit = shooterPlayer.army[shooterUnitId];
+        } else if (shooterPlayer.buildings.ContainsKey(shooterUnitId)) {
+            shooterUnit = shooterPlayer.buildings[shooterUnitId];
+        } else {
+            return;
+        }
+
+        shooterUnit.rotationWhole = rotationWhole;
+        shooterUnit.rotationFractional = rotationFractional;
+
+        PlayerMessage customMessage = new ArrowShootMessage(shooterUnitId, shooterPlayerId, targetUnitId, 
+            targetPlayerId, rotationWhole, rotationFractional);
+
+        try {
+            this.notifyOtherPlayersOnUnitEvent(ref client, shooterUnit, shooterPlayerId, shooterUnitId, ref customMessage, skipWhatSees: true, sendCustomOnTCP: true);
+        } catch (KeyNotFoundException) {
+
         }
     }
 
@@ -322,10 +394,16 @@ public class Room {
         short rotationWhole = legacyReader.ReadInt16();
         short rotationFractional = legacyReader.ReadInt16();
 
+        Player player = RoomMaster.players[client];
+
+        // in case there are some delayed packages and this unit died in the meantime
+        if (!player.army.ContainsKey(unitId)) {
+            return;
+        }
+
         float x = FloatIntConverter.convertInt(wholeX, fractionalX);
         float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
 
-        Player player = RoomMaster.players[client];
         Unit unit = player.army[unitId];
 
         byte unitPlayer = this.playersIClientMapping[client];
@@ -400,8 +478,6 @@ public class Room {
 
         byte attackerPlayerId = this.playersIClientMapping[client];
 
-        Console.WriteLine("Attack unit: " + attackerId + " " + attackerPlayerId);
-
         Player attackerPlayer = RoomMaster.players[client];
         Player victimPlayer = RoomMaster.players[this.playersByteMapping[victimPlayerId]];
 
@@ -434,6 +510,12 @@ public class Room {
         }
 
         attackerUnit.activity = Activities.ATTACKING;
+
+        // buildings will not send attack signals because there are already arrow throwing messages
+        if (Unit.isBuilding(attackerUnit.type)) {
+            return;
+        }
+
         PlayerMessage customMessage = new AttackMessage(attackerId, attackerPlayerId);
 
         try {
@@ -850,66 +932,71 @@ public class Room {
         }
     }
 
-    private void notifyOtherPlayersOnUnitEvent(ref IClient client, Unit unit, byte unitPlayer, ushort unitId, ref PlayerMessage customMessage, bool sendCustomOnTCP = false) {
-        HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit, unitPlayer);
+    private void notifyOtherPlayersOnUnitEvent(ref IClient client, Unit unit, byte unitPlayer, ushort unitId, ref PlayerMessage customMessage,
+        bool sendCustomOnTCP = false, bool skipWhoSees = false, bool skipWhatSees = false) {
+        if (!skipWhoSees) {
+            HashSet<byte> seenBy = this.whoSeesThisUnitWithSquare(client, unit, unitPlayer);
 
-        foreach (byte playerId in seenBy) {
-            IClient enemyClient = this.playersByteMapping[playerId];
+            foreach (byte playerId in seenBy) {
+                IClient enemyClient = this.playersByteMapping[playerId];
 
-            if (sendCustomOnTCP) {
-                if (!this.tcpMessageQueue.ContainsKey(enemyClient)) {
-                    this.tcpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
-                }
-
-                this.tcpMessageQueue[enemyClient].AddLast(customMessage);
-            } else {
-                if (!this.udpMessageQueue.ContainsKey(enemyClient)) {
-                    this.udpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
-                }
-
-                this.udpMessageQueue[enemyClient].AddLast(customMessage);
-            }            
-        }
-
-        Dictionary<byte, HashSet<ushort>> whatThisSees = this.whatThisUnitSees(client, unit);
-        foreach (KeyValuePair<byte, HashSet<ushort>> seenEnemies in whatThisSees) {
-            Player enemyPlayer = RoomMaster.players[this.playersByteMapping[seenEnemies.Key]];
-            foreach (ushort enemyId in seenEnemies.Value) {
-                Unit enemyUnit = null;
-                if (enemyPlayer.army.ContainsKey(enemyId)) {
-                    enemyUnit = enemyPlayer.army[enemyId];
-                    int enemyGridValue = this.map.buildCell(seenEnemies.Key, enemyId, enemyUnit.type);
-
-                    Tuple<short, short> posXParts = FloatIntConverter.convertFloat(enemyUnit.position.x);
-                    Tuple<short, short> posZParts = FloatIntConverter.convertFloat(enemyUnit.position.z);
-
-                    if (!this.udpMessageQueue.ContainsKey(client)) {
-                        this.udpMessageQueue.Add(client, new LinkedList<PlayerMessage>());
+                if (sendCustomOnTCP) {
+                    if (!this.tcpMessageQueue.ContainsKey(enemyClient)) {
+                        this.tcpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
                     }
 
-                    this.udpMessageQueue[client].AddLast(new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
-                        enemyGridValue, enemyUnit.rotationWhole, enemyUnit.rotationFractional, enemyUnit.activity));
+                    this.tcpMessageQueue[enemyClient].AddLast(customMessage);
                 } else {
-                    Player currentPlayer = RoomMaster.players[client];
-                    if (!currentPlayer.seenBuildings.ContainsKey(seenEnemies.Key)) {
-                        currentPlayer.seenBuildings.Add(seenEnemies.Key, new HashSet<ushort>());
+                    if (!this.udpMessageQueue.ContainsKey(enemyClient)) {
+                        this.udpMessageQueue.Add(enemyClient, new LinkedList<PlayerMessage>());
                     }
 
-                    // if this building is seen by the current player, then we'll not send a new building discovery message
-                    if (currentPlayer.seenBuildings[seenEnemies.Key].Contains(enemyId)) {
-                        continue;
-                    } else {
-                        enemyUnit = enemyPlayer.buildings[enemyId];
+                    this.udpMessageQueue[enemyClient].AddLast(customMessage);
+                }
+            }
+        }
+        
+        if (!skipWhatSees) {
+            Dictionary<byte, HashSet<ushort>> whatThisSees = this.whatThisUnitSees(client, unit);
+            foreach (KeyValuePair<byte, HashSet<ushort>> seenEnemies in whatThisSees) {
+                Player enemyPlayer = RoomMaster.players[this.playersByteMapping[seenEnemies.Key]];
+                foreach (ushort enemyId in seenEnemies.Value) {
+                    Unit enemyUnit = null;
+                    if (enemyPlayer.army.ContainsKey(enemyId)) {
+                        enemyUnit = enemyPlayer.army[enemyId];
                         int enemyGridValue = this.map.buildCell(seenEnemies.Key, enemyId, enemyUnit.type);
 
-                        if (!this.tcpMessageQueue.ContainsKey(client)) {
-                            this.tcpMessageQueue.Add(client, new LinkedList<PlayerMessage>());
+                        Tuple<short, short> posXParts = FloatIntConverter.convertFloat(enemyUnit.position.x);
+                        Tuple<short, short> posZParts = FloatIntConverter.convertFloat(enemyUnit.position.z);
+
+                        if (!this.udpMessageQueue.ContainsKey(client)) {
+                            this.udpMessageQueue.Add(client, new LinkedList<PlayerMessage>());
                         }
 
-                        this.tcpMessageQueue[client].AddLast(new BuildingDiscoverMessage(enemyUnit.gridIndex, enemyGridValue));
+                        this.udpMessageQueue[client].AddLast(new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
+                            enemyGridValue, enemyUnit.rotationWhole, enemyUnit.rotationFractional, enemyUnit.activity));
+                    } else {
+                        Player currentPlayer = RoomMaster.players[client];
+                        if (!currentPlayer.seenBuildings.ContainsKey(seenEnemies.Key)) {
+                            currentPlayer.seenBuildings.Add(seenEnemies.Key, new HashSet<ushort>());
+                        }
 
-                        // mark this building as discoved by the current player
-                        currentPlayer.seenBuildings[seenEnemies.Key].Add(enemyId);
+                        // if this building is seen by the current player, then we'll not send a new building discovery message
+                        if (currentPlayer.seenBuildings[seenEnemies.Key].Contains(enemyId)) {
+                            continue;
+                        } else {
+                            enemyUnit = enemyPlayer.buildings[enemyId];
+                            int enemyGridValue = this.map.buildCell(seenEnemies.Key, enemyId, enemyUnit.type);
+
+                            if (!this.tcpMessageQueue.ContainsKey(client)) {
+                                this.tcpMessageQueue.Add(client, new LinkedList<PlayerMessage>());
+                            }
+
+                            this.tcpMessageQueue[client].AddLast(new BuildingDiscoverMessage(enemyUnit.gridIndex, enemyGridValue));
+
+                            // mark this building as discoved by the current player
+                            currentPlayer.seenBuildings[seenEnemies.Key].Add(enemyId);
+                        }
                     }
                 }
             }
