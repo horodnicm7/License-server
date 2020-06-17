@@ -23,6 +23,7 @@
     public const byte SEND_WORLD_DATA = 59;
     public const byte DONE_SENDING_TERRAIN = 60;
     public const byte DONE_INIT_WORLD = 61;
+    public const byte RESOURCE_EXHAUST = 62;
 
     // player specific actions performed during gameplay
     public const byte PLAYER_MOVE = 100;
@@ -39,6 +40,9 @@
     public const byte PLAYER_SEND_PROJECTILE = 111;
     public const byte PLAYER_TAKE_DAMAGE = 112;
     public const byte MIXED_MESSAGE = 113; // signal a package composed from smaller packages
+    public const byte PLAYER_VILLAGER_WALK = 114;
+    public const byte PLAYER_VILLAGER_GATHER = 115;
+    public const byte PLAYER_IDENTIFY_UNIT = 116;
 
     // ACKs or NACKs received by players during gameplay
     public const byte PLAYER_ACTION_VALIDATION = 120;

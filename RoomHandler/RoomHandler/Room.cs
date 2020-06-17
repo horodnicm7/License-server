@@ -4,12 +4,16 @@ using System.Diagnostics;
 using System.Text;
 using DarkRift;
 using DarkRift.Server;
+using YamlDotNet.Core.Tokens;
 
 public class Room {
     // it will work with the instances from RoomMaster and this dictionary will only keep 
     // clients as keys and bool values meaning that a client is room's owner or not
     public Dictionary<IClient, byte> playersIClientMapping;
     public Dictionary<byte, IClient> playersByteMapping;
+
+    public Dictionary<ushort, Resource> resources;
+
     public string uuid;
     public string name;
     public byte maxNumberOfPlayers;
@@ -45,6 +49,8 @@ public class Room {
 
         this.playersIClientMapping = new Dictionary<IClient, byte>();
         this.playersByteMapping = new Dictionary<byte, IClient>();
+
+        this.resources = new Dictionary<ushort, Resource>();
     }
 
     public void ClearMemory() {
@@ -230,6 +236,15 @@ public class Room {
                 case Tags.PLAYER_TAKE_DAMAGE:
                     this.handlePlayerUnitDamage(ref client, ref reader);
                     break;
+                case Tags.PLAYER_VILLAGER_GATHER:
+                    this.handlePlayerVillagerGather(ref client, ref reader);
+                    break;
+                case Tags.PLAYER_VILLAGER_WALK:
+                    this.handlePlayerVillagerWalk(ref client, ref reader);
+                    break;
+                case Tags.PLAYER_IDENTIFY_UNIT:
+                    this.handlePlayerUnitInterogation(ref client, ref reader);
+                    break;
             }
         }
     }
@@ -269,7 +284,120 @@ public class Room {
                 case Tags.PLAYER_TAKE_DAMAGE:
                     this.handlePlayerUnitDamage(ref client, ref legacyReader);
                     break;
+                case Tags.PLAYER_VILLAGER_GATHER:
+                    this.handlePlayerVillagerGather(ref client, ref legacyReader);
+                    break;
+                case Tags.PLAYER_VILLAGER_WALK:
+                    this.handlePlayerVillagerWalk(ref client, ref legacyReader);
+                    break;
+                case Tags.PLAYER_IDENTIFY_UNIT:
+                    this.handlePlayerUnitInterogation(ref client, ref legacyReader);
+                    break;
             }
+        }
+    }
+
+    private void handlePlayerUnitInterogation(ref IClient client, ref DarkRiftReader legacyReader) {
+        ushort unitId = legacyReader.ReadUInt16();
+        byte unitPlayer = legacyReader.ReadByte();
+
+        Player player = RoomMaster.players[this.playersByteMapping[unitPlayer]];
+
+        // ignore
+        if (!player.army.ContainsKey(unitId) && !player.buildings.ContainsKey(unitId)) {
+            return;
+        }
+
+        Unit unit;
+        if (player.army.ContainsKey(unitId)) {
+            unit = player.army[unitId];
+        } else {
+            unit = player.buildings[unitId];
+        }
+
+        Tuple<short, short> xPosParts = FloatIntConverter.convertFloat(unit.position.x);
+        Tuple<short, short> zPosParts = FloatIntConverter.convertFloat(unit.position.z);
+
+        PlayerMessage spawnMessage = new SpawnMessage(unitId, unitPlayer, xPosParts.Item1, xPosParts.Item2, zPosParts.Item1, zPosParts.Item2, unit.rotationWhole, unit.type);
+
+        this.tcpMessageQueue[client].AddLast(spawnMessage);
+    }
+
+    private void handlePlayerVillagerGather(ref IClient client, ref DarkRiftReader legacyReader) {
+        ushort unitId = legacyReader.ReadUInt16();
+        ushort resourceId = legacyReader.ReadUInt16();
+        byte resourceType = legacyReader.ReadByte();
+
+        byte playerId = this.playersIClientMapping[client];
+        Player player = RoomMaster.players[client];
+
+        Unit unit;
+        if (player.army.ContainsKey(unitId)) {
+            unit = player.army[unitId];
+        } else {
+            unit = player.buildings[unitId];
+        }
+
+        PlayerMessage customMessage = new VillagerGatherMessage(unitId, playerId, resourceType);
+
+        try {
+            this.notifyOtherPlayersOnUnitEvent(ref client, unit, playerId, unitId, ref customMessage);
+        } catch(KeyNotFoundException e) {
+            Console.WriteLine(e.ToString());
+        }
+
+        Resource resource = this.resources[resourceId];
+        resource.currentAmount--;
+
+        if (resource.currentAmount <= 0) {
+            PlayerMessage resourceExhaust = new ResourceExhaustionMessage(resourceId);
+            this.resources.Remove(resourceId);
+
+            foreach(KeyValuePair<IClient, byte> playerMap in this.playersIClientMapping) {
+                this.tcpMessageQueue[playerMap.Key].AddLast(resourceExhaust);
+            }
+        }
+    }
+
+    private void handlePlayerVillagerWalk(ref IClient client, ref DarkRiftReader legacyReader) {
+        ushort unitId = legacyReader.ReadUInt16();
+        short wholeX = legacyReader.ReadInt16();
+        short fractionalX = legacyReader.ReadInt16();
+        short wholeZ = legacyReader.ReadInt16();
+        short fractionalZ = legacyReader.ReadInt16();
+        short rotation = legacyReader.ReadInt16();
+        byte activity = legacyReader.ReadByte();
+
+        byte playerId = this.playersIClientMapping[client];
+        Player player = RoomMaster.players[client];
+
+        Unit unit;
+        if (player.army.ContainsKey(unitId)) {
+            unit = player.army[unitId];
+        } else {
+            unit = player.buildings[unitId];
+        }
+
+        float x = FloatIntConverter.convertInt(wholeX, fractionalX);
+        float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
+
+        unit.position.x = x;
+        unit.position.z = z;
+        unit.activity = activity;
+        unit.rotationWhole = rotation;
+
+        this.map.cleanMarkedIndexSquare(unit.gridIndex, SizeMapping.map(unit.type), playerId);
+        unit.gridIndex = this.map.getGridIndex(x, unit.position.y, z);
+        this.map.markCell(unit.gridIndex, this.playersIClientMapping[client], unit.type, unitId);
+
+        int gridValue = this.map.buildCell(playerId, unitId, unit.type);
+
+        PlayerMessage customMessage = new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ, gridValue, unit.rotationWhole, unit.rotationFractional, unit.activity);
+
+        try {
+            this.notifyOtherPlayersOnUnitEvent(ref client, unit, playerId, unitId, ref customMessage);
+        } catch (KeyNotFoundException e) {
+            Console.WriteLine(e.ToString());
         }
     }
 
@@ -527,7 +655,8 @@ public class Room {
 
     private void handlePlayerUnitDeath(ref IClient client, ref DarkRiftReader legacyReader) {
         ushort unitId = legacyReader.ReadUInt16();
-        byte playerId = legacyReader.ReadByte();
+
+        byte playerId = this.playersIClientMapping[client];
 
         // remove the reference from player's tables
         Player player = RoomMaster.players[this.playersByteMapping[playerId]];
@@ -740,7 +869,7 @@ public class Room {
 
         switch (this.playersIClientMapping.Count) {
             case 2:
-                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 256, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 512, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
                 break;
             case 4:
                 result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 2048, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
@@ -800,12 +929,39 @@ public class Room {
                         byte treeType = (byte)(this.map.getEntityType(this.map.getCell(randomTreesPositions[j])) - EntityType.TREE_TYPE1 + 1);
                         ushort counter = this.map.getCounterValue(this.map.getCell(randomTreesPositions[j]));
 
+                        short currentAmount = 0;
+                        if (treeType == EntityType.TREE_TYPE1) {
+                            currentAmount = 120;
+                        } else if (treeType == EntityType.TREE_TYPE2) {
+                            currentAmount = 100;
+                        } else {
+                            currentAmount = 110;
+                        }
+
+                        if (!this.resources.ContainsKey(counter)) {
+                            this.resources.Add(counter, new Resource(currentAmount, randomTreesPositions[j]));
+                        }
+
                         writer.Write(treeType);
                         writer.Write(counter);
                         writer.Write(randomTreesPositions[j]);
                     } else {
                         byte treeType = (byte)(this.map.getEntityType(this.map.getCell(forestsPositions[j - noRandom])) - EntityType.TREE_TYPE1 + 1);
                         ushort counter = this.map.getCounterValue(this.map.getCell(forestsPositions[j - noRandom]));
+
+                        short currentAmount = 0;
+                        if (treeType == EntityType.TREE_TYPE1) {
+                            currentAmount = 120;
+                        } else if (treeType == EntityType.TREE_TYPE2) {
+                            currentAmount = 100;
+                        } else {
+                            currentAmount = 110;
+                        }
+
+                        if (!this.resources.ContainsKey(counter)) {
+                            this.resources.Add(counter, new Resource(currentAmount, forestsPositions[j - noRandom]));
+                        }
+                        
 
                         writer.Write(treeType);
                         writer.Write(counter);
@@ -828,6 +984,10 @@ public class Room {
                     ushort counter = this.map.getCounterValue(this.map.getCell(goldPositions[i]));
                     writer.Write(counter);
                     writer.Write(goldPositions[j]);
+
+                    if (!this.resources.ContainsKey(counter)) {
+                        this.resources.Add(counter, new Resource(500, goldPositions[j]));
+                    }
                 }
 
                 using (Message response = Message.Create(Tags.SEND_GOLD_DATA, writer)) {
@@ -845,6 +1005,10 @@ public class Room {
                     ushort counter = this.map.getCounterValue(this.map.getCell(stonePositions[i]));
                     writer.Write(counter);
                     writer.Write(stonePositions[j]);
+
+                    if (!this.resources.ContainsKey(counter)) {
+                        this.resources.Add(counter, new Resource(300, stonePositions[j]));
+                    }
                 }
 
                 using (Message response = Message.Create(Tags.SEND_STONE_DATA, writer)) {
@@ -883,6 +1047,7 @@ public class Room {
                     ushort entityId = this.map.getCounterValue(entry.Item2);
 
                     Tuple<float, float, float> rawPos = this.map.getCellPosition(entry.Item1);
+
                     Stats unitStats = currentPlayer.playerStats.map(entityType);
                     Unit newUnit = new Unit(new Vector3(rawPos), 0, 0, entityType, unitStats.hp, entry.Item1);
                     newUnit.activity = Activities.NONE;
