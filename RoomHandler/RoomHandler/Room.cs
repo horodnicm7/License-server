@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Text;
 using DarkRift;
 using DarkRift.Server;
-using YamlDotNet.Core.Tokens;
 
 public class Room {
     // it will work with the instances from RoomMaster and this dictionary will only keep 
@@ -124,10 +123,6 @@ public class Room {
     }
 
     public void sendDataToPlayersCallback() {
-        /*while (this.cleanStopMovementsBlock) {
-
-        }*/
-
         foreach(KeyValuePair<IClient, LinkedList<PlayerMessage>> playerQueue in this.udpMessageQueue) {
             DarkRiftWriter udpWriter = DarkRiftWriter.Create();
             byte sent = 0;
@@ -188,6 +183,7 @@ public class Room {
     }
 
     public void changeLeader() {
+        // the next oldest player will become the room's leader
         foreach(KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
             this.leader = player.Key;
             break;
@@ -536,12 +532,6 @@ public class Room {
 
         byte unitPlayer = this.playersIClientMapping[client];
 
-        // remove this unit from the attack avents queue if it exists
-        /*Stats unitStats = player.playerStats.map(unit.type);
-        foreach (KeyValuePair<Tuple<ushort, byte>, AttackEvent> attackEvent in this.unitsToReceiveDamage) {
-            attackEvent.Value.removeAttacker(new Tuple<ushort, byte, short>(unitId, unitPlayer, (short)(unitStats.attack + unitStats.upgradedAttack)));
-        }*/
-
         this.map.cleanMarkedIndexSquare(unit.gridIndex, SizeMapping.map(unit.type), unitPlayer);
         unit.position.x = x;
         unit.position.z = z;
@@ -728,73 +718,6 @@ public class Room {
         } catch (KeyNotFoundException) {
 
         }
-
-        /*ushort unitId = legacyReader.ReadUInt16();
-        short wholeX = legacyReader.ReadInt16();
-        short fractionalX = legacyReader.ReadInt16();
-        short wholeZ = legacyReader.ReadInt16();
-        short fractionalZ = legacyReader.ReadInt16();
-        byte playerId = this.playersIClientMapping[client];*/
-
-        // TODO: this shit might produce some network lag
-        /*this.cleanStopMovementsBlock = true;
-        foreach (KeyValuePair<IClient, LinkedList<PlayerMessage>> message in this.udpMessageQueue) {
-            LinkedList<PlayerMessage> toRemove = new LinkedList<PlayerMessage>();
-
-            foreach(PlayerMessage playerMessage in message.Value) {
-                if (playerMessage.GetType().IsEquivalentTo(typeof(MovementMessage))) {
-                    int gridValue = ((MovementMessage)(playerMessage)).gridValue;
-                    if (this.map.getCounterValue(gridValue) == unitId && this.map.getPlayer(gridValue) == playerId) {
-                        toRemove.AddLast(playerMessage);
-                    }
-                }
-            }
-
-            while(toRemove.Count > 0) {
-                PlayerMessage playerMessage = toRemove.First.Value;
-                toRemove.RemoveFirst();
-
-                message.Value.Remove(playerMessage);
-            }
-        }
-        this.cleanStopMovementsBlock = false;*/
-
-        /*float x = FloatIntConverter.convertInt(wholeX, fractionalX);
-        float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
-
-        int gridIndex = this.map.getGridIndex(x, 0, z);
-
-        Player player = RoomMaster.players[client];
-        Unit unit = null;
-
-        try {
-            if (player.army.ContainsKey(unitId)) {
-                unit = player.army[unitId];
-            } else {
-                unit = player.buildings[unitId];
-            }
-
-            unit.gridIndex = gridIndex;
-            unit.position.x = x;
-            unit.position.z = z;
-            unit.activity = Activities.NONE;
-
-            // remove this unit from the attack avents queue if it exists
-            Stats unitStats = player.playerStats.map(unit.type);
-            foreach(KeyValuePair<Tuple<ushort, byte>, AttackEvent> attackEvent in this.unitsToReceiveDamage) {
-                attackEvent.Value.removeAttacker(new Tuple<ushort, byte, short>(unitId, playerId, (short)(unitStats.attack + unitStats.upgradedAttack)));
-            }
-
-            int gridValue = this.map.buildCell(playerId, unitId, unit.type);
-            if (this.attackingUnits.Contains(gridValue)) {
-                this.attackingUnits.Remove(gridValue);
-            }
-
-            PlayerMessage customMessage = new StopMessage(wholeX, fractionalX, wholeZ, fractionalZ, gridValue);
-            this.notifyOtherPlayersOnUnitEvent(ref client, unit, playerId, unitId, ref customMessage, sendCustomOnTCP: true);
-        } catch (KeyNotFoundException) {
-
-        }*/
     }
 
     private void handlePlayerBuild(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -1021,6 +944,12 @@ public class Room {
 
         // notice the clients that all terrain data has been sent
         using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
+            foreach(KeyValuePair<IClient, byte> playerMap in this.playersIClientMapping) {
+                writer.Write(playerMap.Value);
+                Player player = RoomMaster.players[playerMap.Key];
+                writer.Write(player.civilization);
+            }
+
             using (Message response = Message.Create(Tags.DONE_SENDING_TERRAIN, writer)) {
                 foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
                     player.Key.SendMessage(response, SendMode.Reliable);
@@ -1075,21 +1004,6 @@ public class Room {
         // notice the clients that the game can start
         using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
             using (Message response = Message.Create(Tags.DONE_INIT_WORLD, writer)) {
-                foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
-                    player.Key.SendMessage(response, SendMode.Reliable);
-                }
-            }
-        }
-
-        // notice the players about other players civilizations
-        using (DarkRiftWriter writer = DarkRiftWriter.Create()) {
-            foreach (KeyValuePair<IClient, byte> playerPair in this.playersIClientMapping) {
-                Player player = RoomMaster.players[playerPair.Key];
-                writer.Write(playerPair.Value);
-                writer.Write(player.civilization);
-            }
-
-            using (Message response = Message.Create(Tags.GET_PLAYER_CIVILIZATION, writer)) {
                 foreach (KeyValuePair<IClient, byte> player in this.playersIClientMapping) {
                     player.Key.SendMessage(response, SendMode.Reliable);
                 }

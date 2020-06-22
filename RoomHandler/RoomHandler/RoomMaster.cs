@@ -162,10 +162,23 @@ public class RoomMaster : Plugin {
                         break;
                     case Tags.START_GAME:
                         string roomUuid = reader.ReadString();
+                        byte civilizationId = reader.ReadByte();
                         Room currentRoom = this.rooms[roomUuid];
 
                         // TODO: check if player is room leader and the room is full
                         if (currentRoom.leader == client) {
+                            // check if all players are ready to start
+                            foreach(KeyValuePair<IClient, byte> playerMap in currentRoom.playersIClientMapping) {
+                                Player currentPlayer = RoomMaster.players[playerMap.Key];
+                                if (currentPlayer.ready == false && playerMap.Key != client) {
+                                    return;
+                                }
+                            }
+
+                            Player roomLeader = RoomMaster.players[client];
+                            roomLeader.ready = true;
+                            roomLeader.civilization = civilizationId;
+
                             // set the message received handler to the room's one
                             foreach (KeyValuePair<IClient, byte> roomPlayer in currentRoom.playersIClientMapping) {
                                 roomPlayer.Key.MessageReceived -= this.MessageReceived;
@@ -190,13 +203,15 @@ public class RoomMaster : Plugin {
                             this.rooms.Remove(roomToLeaveId);
                         }
                         break;
-                    case Tags.GET_PLAYER_CIVILIZATION:
-                        byte civId = reader.ReadByte();
-                        Player playerClass = RoomMaster.players[client];
-                        playerClass.civilization = civId;
-                        break;
                     case Tags.KICK_PLAYER_FROM_LOBBY:
 
+                        break;
+                    case Tags.READY_TO_START:
+                        byte civilization = reader.ReadByte();
+
+                        Player preparedPlayer = RoomMaster.players[client];
+                        preparedPlayer.civilization = civilization;
+                        preparedPlayer.ready = true;
                         break;
                 }
             }

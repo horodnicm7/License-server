@@ -10,6 +10,7 @@ public class Player {
     public string name;
     public string roomUUID;
     public byte civilization;
+    public bool ready;
     public HashSet<byte> technologyUpgrades;
 
     // metadata
@@ -24,5 +25,7 @@ public class Player {
         this.playerStats = new PlayerStats();
         this.technologyUpgrades = new HashSet<byte>();
         this.seenBuildings = new Dictionary<byte, HashSet<ushort>>();
+
+        this.ready = false;
     }
 }

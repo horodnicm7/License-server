@@ -13,6 +13,7 @@
     public const byte CAN_START_GAME = 11;
     public const byte KICK_PLAYER_FROM_LOBBY = 12;
     public const byte GET_PLAYER_CIVILIZATION = 13;
+    public const byte READY_TO_START = 14;
 
     // terrain specific tags
     public const byte SEND_TREE_DATA = 50;
