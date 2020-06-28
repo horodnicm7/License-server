@@ -9,6 +9,12 @@ public class Vector3 {
         this.z = z;
     }
 
+    public Vector3(float x, float z) {
+        this.x = x;
+        this.y = 0;
+        this.z = z;
+    }
+
     public Vector3(Tuple<float, float, float> position) {
         this.x = position.Item1;
         this.y = position.Item2;

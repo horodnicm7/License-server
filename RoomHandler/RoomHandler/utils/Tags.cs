@@ -44,6 +44,7 @@
     public const byte PLAYER_VILLAGER_WALK = 114;
     public const byte PLAYER_VILLAGER_GATHER = 115;
     public const byte PLAYER_IDENTIFY_UNIT = 116;
+    public const byte PLAYER_SEND_WAYPOINT = 117;
 
     // ACKs or NACKs received by players during gameplay
     public const byte PLAYER_ACTION_VALIDATION = 120;

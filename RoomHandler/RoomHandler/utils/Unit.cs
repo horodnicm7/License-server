@@ -4,6 +4,7 @@ using System.Text;
 
 public class Unit {
     public Vector3 position;
+    public Vector3 waypoint;
     public short rotationWhole;
     public short rotationFractional;
     public int gridIndex;
@@ -11,7 +12,8 @@ public class Unit {
     public byte activity;
     public short currentHp;
 
-    public Unit(Vector3 position, short rotationWhole, short rotationFractional, byte type, short currentHp, int gridIndex) {
+    public Unit(Vector3 position, short rotationWhole, short rotationFractional, byte type, short currentHp, int gridIndex,
+        Vector3 waypoint = null) {
         this.position = position;
         this.rotationWhole = rotationWhole;
         this.rotationFractional = rotationFractional;
@@ -20,6 +22,12 @@ public class Unit {
         this.gridIndex = gridIndex;
         this.currentHp = currentHp;
         this.activity = Activities.NONE;
+
+        if (waypoint == null) {
+            this.waypoint = position;
+        } else {
+            this.waypoint = waypoint;
+        }
     }
 
     public static bool isBuilding(byte unitType) {

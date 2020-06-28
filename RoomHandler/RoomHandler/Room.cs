@@ -241,6 +241,9 @@ public class Room {
                 case Tags.PLAYER_IDENTIFY_UNIT:
                     this.handlePlayerUnitInterogation(ref client, ref reader);
                     break;
+                case Tags.PLAYER_SEND_WAYPOINT:
+                    this.handlePlayerUnitWaypoint(ref client, ref reader);
+                    break;
             }
         }
     }
@@ -289,8 +292,31 @@ public class Room {
                 case Tags.PLAYER_IDENTIFY_UNIT:
                     this.handlePlayerUnitInterogation(ref client, ref legacyReader);
                     break;
+                case Tags.PLAYER_SEND_WAYPOINT:
+                    this.handlePlayerUnitWaypoint(ref client, ref legacyReader);
+                    break;
             }
         }
+    }
+
+    private void handlePlayerUnitWaypoint(ref IClient client, ref DarkRiftReader legacyReader) {
+        ushort unitId = legacyReader.ReadUInt16();
+        short wholeX = legacyReader.ReadInt16();
+        short fractionalX = legacyReader.ReadInt16();
+        short wholeZ = legacyReader.ReadInt16();
+        short fractionalZ = legacyReader.ReadInt16();
+
+        float x = FloatIntConverter.convertInt(wholeX, fractionalX);
+        float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
+
+        Player player = RoomMaster.players[client];
+        
+        if (!player.army.ContainsKey(unitId)) {
+            return;
+        }
+
+        Unit unit = player.army[unitId];
+        unit.waypoint = new Vector3(x, z);
     }
 
     private void handlePlayerUnitInterogation(ref IClient client, ref DarkRiftReader legacyReader) {
