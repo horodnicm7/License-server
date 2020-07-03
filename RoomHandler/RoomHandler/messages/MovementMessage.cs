@@ -8,18 +8,16 @@ class MovementMessage : PlayerMessage {
 
     public int gridValue;
     private short wholeRotationY;
-    private short fractionalRotationY;
     private byte activity;
 
     public MovementMessage(short wholeX, short fractionalX, short wholeZ, short fractionalZ,
-        int gridValue, short wholeRotationY, short fractionalRotationY, byte activity) {
+        int gridValue, short wholeRotationY, byte activity) {
         this.wholeX = wholeX;
         this.fractionalX = fractionalX;
         this.wholeZ = wholeZ;
         this.fractionalZ = fractionalZ;
         this.gridValue = gridValue;
         this.wholeRotationY = wholeRotationY;
-        this.fractionalRotationY = fractionalRotationY;
         this.activity = activity;
     }
 
@@ -31,7 +29,6 @@ class MovementMessage : PlayerMessage {
         writer.Write(this.fractionalZ);
         writer.Write(this.gridValue);
         writer.Write(this.wholeRotationY);
-        writer.Write(this.fractionalRotationY);
         writer.Write(this.activity);
     }
 }

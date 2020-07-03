@@ -306,17 +306,28 @@ public class Room {
         short wholeZ = legacyReader.ReadInt16();
         short fractionalZ = legacyReader.ReadInt16();
 
+        Player player = RoomMaster.players[client];
+
         float x = FloatIntConverter.convertInt(wholeX, fractionalX);
         float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
 
-        Player player = RoomMaster.players[client];
-        
         if (!player.army.ContainsKey(unitId)) {
+            Console.WriteLine("Not in player");
             return;
         }
 
         Unit unit = player.army[unitId];
         unit.waypoint = new Vector3(x, z);
+
+        byte playerId = this.playersIClientMapping[client];
+
+        PlayerMessage customMessage = new WaypointMessage(unitId, playerId, wholeX, fractionalX, wholeZ, fractionalZ);
+
+        try {
+            this.notifyOtherPlayersOnUnitEvent(ref client, unit, playerId, unitId, ref customMessage);
+        } catch(KeyNotFoundException e) {
+            Console.WriteLine("Key not found in handle waypoint: " + e.ToString());
+        }
     }
 
     private void handlePlayerUnitInterogation(ref IClient client, ref DarkRiftReader legacyReader) {
@@ -414,7 +425,7 @@ public class Room {
 
         int gridValue = this.map.buildCell(playerId, unitId, unit.type);
 
-        PlayerMessage customMessage = new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ, gridValue, unit.rotationWhole, unit.rotationFractional, unit.activity);
+        PlayerMessage customMessage = new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ, gridValue, unit.rotationWhole, unit.activity);
 
         try {
             this.notifyOtherPlayersOnUnitEvent(ref client, unit, playerId, unitId, ref customMessage);
@@ -471,7 +482,6 @@ public class Room {
         }
 
         shooterUnit.rotationWhole = rotationWhole;
-        shooterUnit.rotationFractional = rotationFractional;
 
         PlayerMessage customMessage = new ArrowShootMessage(shooterUnitId, shooterPlayerId, targetUnitId, 
             targetPlayerId, rotationWhole, rotationFractional);
@@ -490,7 +500,6 @@ public class Room {
         short fractionalZ = legacyReader.ReadInt16();
         int gridValue = legacyReader.ReadInt32();
         short rotationWhole = legacyReader.ReadInt16();
-        short rotationFractional = legacyReader.ReadInt16();
 
         float x = FloatIntConverter.convertInt(wholeX, fractionalX);
         float z = FloatIntConverter.convertInt(wholeZ, fractionalZ);
@@ -508,12 +517,12 @@ public class Room {
         Vector3 positionVector = new Vector3(x, 0, z);
         if (Unit.isBuilding(type)) {
             if (!player.buildings.ContainsKey(counterValue)) {
-                newUnit = new Unit(positionVector, rotationWhole, rotationFractional, type, unitStats.hp, gridIndex);
+                newUnit = new Unit(positionVector, rotationWhole, type, unitStats.hp, gridIndex);
                 player.buildings.Add(counterValue, newUnit);
                 sendSpawnToOthers = true;
             }
         } else if (!player.army.ContainsKey(counterValue)) {
-            newUnit = new Unit(positionVector, rotationWhole, rotationFractional, type, unitStats.hp, gridIndex);
+            newUnit = new Unit(positionVector, rotationWhole, type, unitStats.hp, gridIndex);
             player.army.Add(counterValue, newUnit);
             sendSpawnToOthers = true;
         }
@@ -530,7 +539,7 @@ public class Room {
                 }
 
                 this.tcpMessageQueue[enemyClient].AddLast(new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ,
-                    gridValue, rotationWhole, rotationFractional, Activities.NONE));
+                    gridValue, rotationWhole, Activities.NONE));
             }
         }
     }
@@ -542,7 +551,6 @@ public class Room {
         short wholeZ = legacyReader.ReadInt16();
         short fractionalZ = legacyReader.ReadInt16();
         short rotationWhole = legacyReader.ReadInt16();
-        short rotationFractional = legacyReader.ReadInt16();
 
         Player player = RoomMaster.players[client];
 
@@ -563,7 +571,6 @@ public class Room {
         unit.position.z = z;
         unit.gridIndex = this.map.getGridIndex(x, unit.position.y, z);
         unit.rotationWhole = rotationWhole;
-        unit.rotationFractional = rotationFractional;
         unit.activity = Activities.MOVING;
         this.map.markCell(unit.gridIndex, this.playersIClientMapping[client], unit.type, unitId);
 
@@ -574,7 +581,7 @@ public class Room {
         }
 
         PlayerMessage customMessage = new MovementMessage(wholeX, fractionalX, wholeZ, fractionalZ,
-                    gridValue, rotationWhole, rotationFractional, Activities.MOVING);
+                    gridValue, rotationWhole, Activities.MOVING);
 
         try {
             this.notifyOtherPlayersOnUnitEvent(ref client, unit, unitPlayer, unitId, ref customMessage);
@@ -586,7 +593,6 @@ public class Room {
     private void handlePlayerUnitRotate(ref IClient client, ref DarkRiftReader legacyReader) {
         ushort unitId = legacyReader.ReadUInt16();
         short wholeY = legacyReader.ReadInt16();
-        short fractionalY = legacyReader.ReadInt16();
 
         byte unitPlayer = this.playersIClientMapping[client];
         Unit unit = null;
@@ -600,14 +606,13 @@ public class Room {
             }
 
             unit.rotationWhole = wholeY;
-            unit.rotationFractional = fractionalY;
 
             Tuple<short, short> posXParts = FloatIntConverter.convertFloat(unit.position.x);
             Tuple<short, short> posZParts = FloatIntConverter.convertFloat(unit.position.z);
 
             int gridValue = this.map.buildCell(unitPlayer, unitId, unit.type);
             PlayerMessage customMessage = new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
-                        gridValue, wholeY, fractionalY, unit.activity);
+                        gridValue, wholeY, unit.activity);
 
             this.notifyOtherPlayersOnUnitEvent(ref client, unit, unitPlayer, unitId, ref customMessage);
         } catch (KeyNotFoundException) {
@@ -759,7 +764,7 @@ public class Room {
         Player player = RoomMaster.players[client];
         Stats unitStats = player.playerStats.map(buildingType);
 
-        Unit newUnit = new Unit(position, 0, 0, buildingType, unitStats.hp, gridIndex);
+        Unit newUnit = new Unit(position, 0, buildingType, unitStats.hp, gridIndex);
         player.buildings.Add(unitId, newUnit);
 
         // mark this building on the grid
@@ -1004,7 +1009,7 @@ public class Room {
                     Tuple<float, float, float> rawPos = this.map.getCellPosition(entry.Item1);
 
                     Stats unitStats = currentPlayer.playerStats.map(entityType);
-                    Unit newUnit = new Unit(new Vector3(rawPos), 0, 0, entityType, unitStats.hp, entry.Item1);
+                    Unit newUnit = new Unit(new Vector3(rawPos), 0, entityType, unitStats.hp, entry.Item1);
                     newUnit.activity = Activities.NONE;
 
                     // compute the maximum field of view for every unit
@@ -1079,7 +1084,7 @@ public class Room {
                         }
 
                         this.udpMessageQueue[client].AddLast(new MovementMessage(posXParts.Item1, posXParts.Item2, posZParts.Item1, posZParts.Item2,
-                            enemyGridValue, enemyUnit.rotationWhole, enemyUnit.rotationFractional, enemyUnit.activity));
+                            enemyGridValue, enemyUnit.rotationWhole, enemyUnit.activity));
                     } else {
                         Player currentPlayer = RoomMaster.players[client];
                         if (!currentPlayer.seenBuildings.ContainsKey(seenEnemies.Key)) {
