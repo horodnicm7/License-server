@@ -244,6 +244,9 @@ public class Room {
                 case Tags.PLAYER_SEND_WAYPOINT:
                     this.handlePlayerUnitWaypoint(ref client, ref reader);
                     break;
+                case Tags.PLAYER_LOST_GAME:
+                    this.handlePlayerLoss(ref client, ref reader);
+                    break;
             }
         }
     }
@@ -297,6 +300,23 @@ public class Room {
                     break;
             }
         }
+    }
+
+    private void handlePlayerLoss(ref IClient client, ref DarkRiftReader legacyReader) {
+        List<IClient> otherPlayers = this.getOtherPlayers(client);
+        DarkRiftWriter tcpWriter = DarkRiftWriter.Create();
+
+        tcpWriter.Write(this.playersIClientMapping[client]);
+
+        using (Message response = Message.Create(Tags.PLAYER_LOST_GAME, tcpWriter)) {
+            foreach (IClient player in otherPlayers) {
+                player.SendMessage(response, SendMode.Reliable);
+            }
+        }
+
+        // the player which surrendered won't get messages any more about other players
+        this.udpMessageQueue[client].Clear();
+        this.tcpMessageQueue[client].Clear();
     }
 
     private void handlePlayerUnitWaypoint(ref IClient client, ref DarkRiftReader legacyReader) {

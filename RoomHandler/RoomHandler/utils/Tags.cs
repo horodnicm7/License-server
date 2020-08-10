@@ -46,6 +46,8 @@
     public const byte PLAYER_IDENTIFY_UNIT = 116;
     public const byte PLAYER_SEND_WAYPOINT = 118;
 
+    public const byte PLAYER_LOST_GAME = 120;
+
     // ACKs or NACKs received by players during gameplay
     //public const byte PLAYER_ACTION_VALIDATION = 120;
 }
