@@ -14,17 +14,20 @@ public class PlayerStats {
             { EntityType.ARCHER, new Stats(hp: 45, attack: 5, upgradedAttack: 0, range: 8, fieldOfView: 28, swordArmor: 0, arrowArmor: 1, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
             { EntityType.VILLAGER, new Stats(hp: 40, attack: 2, upgradedAttack: 0, range: 1, fieldOfView: 16, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
 
-            { EntityType.BARRACKS, new Stats(hp: 1500, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 24, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
-            { EntityType.HOUSE, new Stats(hp: 900, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 16, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
-            { EntityType.GUARD_TOWER, new Stats(hp: 2350, attack: 5, upgradedAttack: 0, range: 16, fieldOfView: 60, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
+            { EntityType.BARRACKS, new Stats(hp: 1500, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 20, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
+            { EntityType.HOUSE, new Stats(hp: 900, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 12, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
+            { EntityType.GUARD_TOWER, new Stats(hp: 2350, attack: 5, upgradedAttack: 0, range: 16, fieldOfView: 40, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
             { EntityType.CASTLE, new Stats(hp: 6800, attack: 9, upgradedAttack: 0, range: 0, fieldOfView: 60, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
             { EntityType.KEEP, new Stats(hp: 4550, attack: 7, upgradedAttack: 0, range: 0, fieldOfView: 60, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
-            { EntityType.BLACKSMITH, new Stats(hp: 1700, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 24, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
+            { EntityType.BLACKSMITH, new Stats(hp: 1700, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 20, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
             { EntityType.STONE_WALL, new Stats(hp: 1800, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 16, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
+            { EntityType.STONE_WALL_CORNER, new Stats(hp: 1800, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 12, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
+            { EntityType.STONE_GATE, new Stats(hp: 3000, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 16, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
+            { EntityType.WOOD_WALL, new Stats(hp: 900, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 16, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
             { EntityType.MINE_CAMP, new Stats(hp: 1200, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 16, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
-            { EntityType.ARCHERY_RANGE, new Stats(hp: 1900, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 16, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
+            { EntityType.ARCHERY_RANGE, new Stats(hp: 1900, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 20, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
             { EntityType.BARN, new Stats(hp: 1100, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 16, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) },
-            { EntityType.TOWN_HALL, new Stats(hp: 2500, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 24, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) }
+            { EntityType.TOWN_HALL, new Stats(hp: 2500, attack: 0, upgradedAttack: 0, range: 0, fieldOfView: 40, swordArmor: 0, arrowArmor: 0, upgradedSwordArmor: 0, upgradedArrowArmor: 0, level: 0) }
         };
     }
 

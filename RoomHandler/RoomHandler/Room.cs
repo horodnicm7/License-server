@@ -131,7 +131,8 @@ public class Room {
                 PlayerMessage playerMessage = playerQueue.Value.First.Value;
                 playerQueue.Value.RemoveFirst();
 
-                if (playerMessage.GetType() == typeof(MovementMessage) && this.attackingUnits.Contains(((MovementMessage)playerMessage).gridValue)) {
+                if (playerMessage.GetType() == typeof(MovementMessage) && 
+                    this.attackingUnits.Contains(((MovementMessage)playerMessage).gridValue)) {
                     continue;
                 }
                 
@@ -140,7 +141,7 @@ public class Room {
                 sent++;
             }
 
-            // if there are messages in this queue to send
+            // if there were messages in this queue to send
             if (sent > 0) {
                 using (Message response = Message.Create(Tags.MIXED_MESSAGE, udpWriter)) {
                     playerQueue.Key.SendMessage(response, SendMode.Unreliable);
@@ -852,7 +853,7 @@ public class Room {
                 result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 4096, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
                 break;
             case 1:
-                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 256, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 1500, random.Next(7, 15), random.Next(7, 9), random.Next(1, 3));
                 break;
         }
 
