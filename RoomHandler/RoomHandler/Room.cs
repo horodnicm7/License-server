@@ -844,7 +844,7 @@ public class Room {
 
         switch (this.playersIClientMapping.Count) {
             case 2:
-                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 512, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
+                result = new Tuple<ushort, float, int, int, int, int>(128, 0.25f, 2048, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
                 break;
             case 4:
                 result = new Tuple<ushort, float, int, int, int, int>(128, 4f, 2048, random.Next(7, 15), random.Next(1, 3), random.Next(1, 3));
@@ -904,13 +904,14 @@ public class Room {
                         byte treeType = (byte)(this.map.getEntityType(this.map.getCell(randomTreesPositions[j])) - EntityType.TREE_TYPE1 + 1);
                         ushort counter = this.map.getCounterValue(this.map.getCell(randomTreesPositions[j]));
 
+                        // TODO: change these. They are for demo purposes only
                         short currentAmount = 0;
                         if (treeType == EntityType.TREE_TYPE1) {
-                            currentAmount = 120;
+                            currentAmount = 7;
                         } else if (treeType == EntityType.TREE_TYPE2) {
-                            currentAmount = 100;
+                            currentAmount = 7;
                         } else {
-                            currentAmount = 110;
+                            currentAmount = 7;
                         }
 
                         if (!this.resources.ContainsKey(counter)) {
@@ -1087,6 +1088,8 @@ public class Room {
             }
         }
         
+        // TODO: Huge optimization: Vezi ca de fiecare data cand o unitate se misca, se tot trimite mesaje de miscare
+        // pentru fiecare entitate pe care o vede. Incearca sa reduci numarul de mesaje
         if (!skipWhatSees) {
             Dictionary<byte, HashSet<ushort>> whatThisSees = this.whatThisUnitSees(client, unit);
             foreach (KeyValuePair<byte, HashSet<ushort>> seenEnemies in whatThisSees) {
