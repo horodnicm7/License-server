@@ -79,7 +79,7 @@ public class Room {
                 continue;
             }
 
-            damageReceiveEvent.Value.isDeadAfterInflictedAttacks(ref victim);
+            damageReceiveEvent.Value.isDeadAfterInflictedAttacks(ref victim, this.playersByteMapping);
 
             if (victim.currentHp <= 0) {
                 // notify all players about this unit's death and remove the reference from player's seenBuildings
@@ -669,7 +669,7 @@ public class Room {
         }
 
         Stats attackerStats = attackerPlayer.playerStats.map(attackerUnit.type);
-        Tuple<ushort, byte, short> attackerData = new Tuple<ushort, byte, short>(attackerId, attackerPlayerId, (short)(attackerStats.attack + attackerStats.upgradedAttack));
+        Tuple<ushort, byte, byte> attackerData = new Tuple<ushort, byte, byte>(attackerId, attackerPlayerId, attackerUnit.type);
         Tuple<ushort, byte> victimData = new Tuple<ushort, byte>(victimId, victimPlayerId);
         if (!this.unitsToReceiveDamage.ContainsKey(victimData)) {
             this.unitsToReceiveDamage.Add(victimData, new AttackEvent(attackerData));
@@ -756,7 +756,7 @@ public class Room {
             if (activity == Activities.ATTACKING) {
                 Stats unitStats = player.playerStats.map(unit.type);
                 foreach (KeyValuePair<Tuple<ushort, byte>, AttackEvent> attackEvent in this.unitsToReceiveDamage) {
-                    attackEvent.Value.removeAttacker(new Tuple<ushort, byte, short>(unitId, playerId, (short)(unitStats.attack + unitStats.upgradedAttack)));
+                    attackEvent.Value.removeAttacker(new Tuple<ushort, byte, byte>(unitId, playerId, unit.type));
                 }
 
                 int gridValue = this.map.buildCell(playerId, unitId, unit.type);

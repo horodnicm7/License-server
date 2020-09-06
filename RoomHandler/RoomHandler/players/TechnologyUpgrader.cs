@@ -52,18 +52,37 @@
 
             case UpgradeTags.SWORDSMAN_LEVEL1:
                 player.playerStats.upgradeLevel(EntityType.SWORDSMAN, 1);
+                player.playerStats.upgradeStandardAttack(EntityType.SWORDSMAN, 10);
+                player.playerStats.upgradeHp(EntityType.SWORDSMAN, 85);
+                player.playerStats.upgradeStandardSwordArmor(EntityType.SWORDSMAN, 2);
+                player.playerStats.upgradeStandardArrowArmor(EntityType.SWORDSMAN, 0);
                 break;
             case UpgradeTags.SWORDSMAN_LEVEL2:
                 player.playerStats.upgradeLevel(EntityType.SWORDSMAN, 2);
+                player.playerStats.upgradeStandardAttack(EntityType.SWORDSMAN, 12);
+                player.playerStats.upgradeHp(EntityType.SWORDSMAN, 90);
+                player.playerStats.upgradeStandardSwordArmor(EntityType.SWORDSMAN, 2);
+                player.playerStats.upgradeStandardArrowArmor(EntityType.SWORDSMAN, 1);
                 break;
             case UpgradeTags.SWORDSMAN_LEVEL3:
                 player.playerStats.upgradeLevel(EntityType.SWORDSMAN, 3);
                 break;
             case UpgradeTags.SPEARMAN_LEVEL1:
                 player.playerStats.upgradeLevel(EntityType.SPEARMAN, 1);
+                player.playerStats.upgradeStandardAttack(EntityType.SPEARMAN, 11);
+                player.playerStats.upgradeHp(EntityType.SWORDSMAN, 60);
+                player.playerStats.upgradeStandardSwordArmor(EntityType.SWORDSMAN, 1);
+                player.playerStats.upgradeStandardArrowArmor(EntityType.SWORDSMAN, 1);
                 break;
             case UpgradeTags.SPEARMAN_LEVEL2:
                 player.playerStats.upgradeLevel(EntityType.SPEARMAN, 2);
+                break;
+            case UpgradeTags.ELITE_SWORDSMAN_LEVEL1:
+                player.playerStats.upgradeLevel(EntityType.ELITE_SWORDSMAN, 1);
+                player.playerStats.upgradeStandardAttack(EntityType.ELITE_SWORDSMAN, 16);
+                player.playerStats.upgradeHp(EntityType.SWORDSMAN, 95);
+                player.playerStats.upgradeStandardSwordArmor(EntityType.SWORDSMAN, 3);
+                player.playerStats.upgradeStandardArrowArmor(EntityType.SWORDSMAN, 2);
                 break;
         }
     }
